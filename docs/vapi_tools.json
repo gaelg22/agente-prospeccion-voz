@@ -1,0 +1,90 @@
+// ============================================================================
+// TOOLS DEL ASISTENTE — para el dashboard de Vapi (o vía API al crear el
+// assistant). Las 4 apuntan a tu webhook: https://TU-SERVICIO.onrender.com/webhooks/vapi
+// Vapi manda el tool-call ahí; tu tool-handlers.ts responde el "result".
+// El leadId NO es parámetro de las tools: tu backend lo mete en metadata al
+// crear la llamada (vapi.client.ts) y lo recupera del payload del webhook.
+// ============================================================================
+
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "verificar_disponibilidad",
+      "description": "Consulta la agenda del asesor y regresa hasta dos días con su ventana de horas libres para cita por videollamada. SIEMPRE llamar antes de ofrecer cualquier horario al prospecto.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    "server": { "url": "https://TU-SERVICIO.onrender.com/webhooks/vapi" }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "agendar_cita",
+      "description": "Agenda la cita por videollamada en el día y hora que el prospecto confirmó de viva voz. Solo llamar con día y hora ya aceptados por la persona, y que hayan sido ofrecidos por verificar_disponibilidad. Regresa el folio de confirmación.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "fecha": {
+            "type": "string",
+            "description": "Fecha de la cita en formato YYYY-MM-DD, zona America/Mexico_City"
+          },
+          "hora": {
+            "type": "string",
+            "description": "Hora de inicio en formato HH:mm de 24 horas (ej. 17:00). Debe ser una hora en punto dentro de la ventana ofrecida"
+          },
+          "notas": {
+            "type": "string",
+            "description": "Opcional: producto de interés u observaciones dichas por el prospecto (ej. 'gastos médicos, para él y su esposa', 'no tiene WhatsApp')"
+          }
+        },
+        "required": ["fecha", "hora"]
+      }
+    },
+    "server": { "url": "https://TU-SERVICIO.onrender.com/webhooks/vapi" }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "registrar_resultado",
+      "description": "Registra el desenlace final de la llamada. OBLIGATORIO llamarla al final de toda llamada, sin excepción, justo antes de despedirse o colgar.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "desenlace": {
+            "type": "string",
+            "enum": ["acepto", "no_interesado", "interesado_sin_espacio", "no_contactar", "buzon", "numero_equivocado"],
+            "description": "acepto = agendó cita · no_interesado = rechazó · interesado_sin_espacio = quería pero ningún horario le quedó · no_contactar = pidió no ser contactado · buzon = contestó buzón de voz · numero_equivocado = no era la persona"
+          },
+          "notas": {
+            "type": "string",
+            "description": "Opcional: contexto breve del desenlace (ej. 'pidió llamar en agosto', 'el número es de otra persona')"
+          }
+        },
+        "required": ["desenlace"]
+      }
+    },
+    "server": { "url": "https://TU-SERVICIO.onrender.com/webhooks/vapi" }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "marcar_no_contactar",
+      "description": "Marca al prospecto como NO CONTACTAR de forma permanente. Llamar en el instante en que la persona pida no recibir más llamadas, ser borrada de la lista, o exprese molestia por el contacto. Es irreversible desde la llamada.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "description": "Opcional: frase breve de cómo lo pidió (ej. 'pidió borrar su número')"
+          }
+        },
+        "required": []
+      }
+    },
+    "server": { "url": "https://TU-SERVICIO.onrender.com/webhooks/vapi" }
+  }
+]

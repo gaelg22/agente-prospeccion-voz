@@ -28,6 +28,14 @@ const envSchema = z.object({
   // ── Anthropic (LLM para el agente) ───────────────────────────────────────
   ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY es requerida'),
 
+  // ── Identidad pública del servicio y del asistente de voz ─────────────────
+  // PUBLIC_URL: base para construir el server.url de las tools de Vapi
+  // (PUBLIC_URL + /webhooks/vapi). En producción debe ser la URL de Render.
+  PUBLIC_URL: z.string().url().default('http://localhost:3000'),
+  AGENTE_NOMBRE: z.string().min(1).default('Laia'),
+  EMPRESA_NOMBRE: z.string().min(1).default('Asesoría de Seguros (prueba)'),
+  TELEFONO_OFICIAL: z.string().min(1).default('55 0000 0000'),
+
   // ── Google Calendar (opcional en esta fase) ───────────────────────────────
   GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
   GOOGLE_PRIVATE_KEY: z.string().min(1).optional(),
