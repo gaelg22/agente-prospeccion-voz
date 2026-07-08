@@ -1,0 +1,25 @@
+# Dependencias
+node_modules/
+
+# Build
+dist/
+
+# Entorno — NUNCA subir secretos
+.env
+.env.local
+*.env.local
+
+# Logs
+*.log
+logs/
+
+# Tests
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

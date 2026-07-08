@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: agente-prospeccion
+    runtime: docker
+    plan: free          # cambiar a "starter" o "standard" cuando escale
+    healthCheckPath: /health
+    autoDeploy: true    # re-deploy automático en cada push a main
+
+    # Variables de entorno — los valores "sync: false" se configuran en el
+    # dashboard de Render (no se commitean al repositorio).
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # PORT lo inyecta Render automáticamente — no incluir aquí
+
+      - key: MONGODB_URI
+        sync: false
+
+      - key: API_KEY
+        sync: false
+
+      - key: VAPI_API_KEY
+        sync: false
+
+      - key: VAPI_ASSISTANT_ID
+        sync: false
+
+      - key: VAPI_PHONE_NUMBER_ID
+        sync: false
+
+      - key: VAPI_WEBHOOK_SECRET
+        sync: false
+
+      - key: DENUE_TOKEN
+        sync: false
+
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # Opcionales — descomentar cuando se activen estas integraciones
+      # - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+      #   sync: false
+      # - key: GOOGLE_PRIVATE_KEY
+      #   sync: false
+      # - key: GOOGLE_CALENDAR_ID
+      #   sync: false
+      # - key: KAPSO_API_URL
+      #   sync: false
+      # - key: KAPSO_API_KEY
+      #   sync: false
