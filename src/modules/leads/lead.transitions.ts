@@ -26,6 +26,7 @@ const TRANSITIONS: Readonly<Record<LeadStatus, readonly LeadStatus[]>> = {
 };
 
 export class InvalidTransitionError extends Error {
+  readonly statusCode = 409;
   readonly from: LeadStatus;
   readonly to: LeadStatus;
 

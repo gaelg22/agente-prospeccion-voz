@@ -1,4 +1,5 @@
 import Agenda, { Job } from 'agenda';
+import { config } from '../../../config';
 import { logger } from '../../../lib/logger';
 import { isInCallingWindow } from '../../../lib/calling-window';
 import { LeadService } from '../../leads/lead.service';
@@ -8,6 +9,11 @@ export const JOB_NAME_MARCAR = 'marcar-llamada';
 
 export function defineMarcarLlamadaJob(agenda: Agenda): void {
   agenda.define(JOB_NAME_MARCAR, { concurrency: 1 }, async (_job: Job) => {
+    if (!config.COLA_ACTIVA) {
+      logger.info('COLA_ACTIVA=false — marcar-llamada registrado pero inactivo, no se disparan llamadas');
+      return;
+    }
+
     if (!isInCallingWindow()) {
       logger.debug('Outside calling window — skipping marcar-llamada');
       return;

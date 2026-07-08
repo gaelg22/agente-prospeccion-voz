@@ -37,6 +37,11 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false
 
+      # Kill-switch de la cola de llamadas — cambiar a "true" para activar
+      # las llamadas reales en producción
+      - key: COLA_ACTIVA
+        value: "false"
+
       # Opcionales — descomentar cuando se activen estas integraciones
       # - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
       #   sync: false

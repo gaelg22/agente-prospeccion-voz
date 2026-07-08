@@ -1,4 +1,5 @@
 import Agenda, { Job } from 'agenda';
+import { config } from '../../../config';
 import { logger } from '../../../lib/logger';
 import { isInCallingWindow } from '../../../lib/calling-window';
 import { LeadService } from '../../leads/lead.service';
@@ -12,6 +13,11 @@ interface ReintentoData {
 
 export function defineReintentoJob(agenda: Agenda): void {
   agenda.define(JOB_NAME_REINTENTO, { concurrency: 1 }, async (job: Job<ReintentoData>) => {
+    if (!config.COLA_ACTIVA) {
+      logger.info('COLA_ACTIVA=false — reintento-llamada registrado pero inactivo, no se disparan llamadas');
+      return;
+    }
+
     const { leadId } = job.attrs.data;
 
     const lead = await LeadService.findById(leadId);

@@ -35,6 +35,8 @@ describe('validateTransition — illegal transitions', () => {
     ['no_interesado', 'nuevo'],
     ['no_contactable', 'listo_llamar'],
     ['no_contactar', 'llamado'],
+    ['no_contactar', 'listo_llamar'], // terminal — nunca debe volver a la cola
+    ['no_interesado', 'listo_llamar'], // terminal — nunca debe volver a la cola
     ['interesado_sin_espacio', 'acepto'],
   ];
 
@@ -43,6 +45,11 @@ describe('validateTransition — illegal transitions', () => {
       expect(() => validateTransition(from, to)).toThrow(InvalidTransitionError);
     });
   }
+
+  it('InvalidTransitionError lleva statusCode 409 (Conflict) para el error middleware', () => {
+    const err = new InvalidTransitionError('no_contactar', 'listo_llamar');
+    expect(err.statusCode).toBe(409);
+  });
 });
 
 describe('isTerminal', () => {

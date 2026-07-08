@@ -41,6 +41,13 @@ const envSchema = z.object({
   // ── Agenda (jobs) ─────────────────────────────────────────────────────────
   AGENDA_COLLECTION: z.string().default('agendaJobs'),
   CALL_CADENCE_MINUTES: z.coerce.number().int().positive().default(10),
+
+  // Kill-switch de la cola: los jobs se registran siempre, pero solo disparan
+  // llamadas reales cuando COLA_ACTIVA=true. Default apagado por seguridad.
+  COLA_ACTIVA: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 const parsed = envSchema.safeParse(process.env);
