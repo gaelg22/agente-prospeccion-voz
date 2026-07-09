@@ -13,6 +13,8 @@ const mockConfig = vi.hoisted(() => ({
   TELEFONO_OFICIAL: '55 1234 5678',
   VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
   VAPI_VOICE_ID: 'voz-de-prueba',
+  VAPI_TRANSCRIBER_MODEL: 'nova-2',
+  VAPI_TRANSCRIBER_LANGUAGE: 'es-419',
 }));
 
 vi.mock('../../../config', () => ({ config: mockConfig }));
@@ -120,15 +122,25 @@ describe('buildAssistant — assistant transient completo', () => {
     expect(assistant.model.messages).toEqual([{ role: 'system', content: systemPrompt }]);
   });
 
-  it('lleva las 4 tools de la especificación', () => {
+  it('lleva las 4 tools de la especificación más endCall', () => {
     const assistant = buildAssistant();
-    expect(assistant.model.tools).toBe(assistantTools);
-    expect(assistant.model.tools.map((t) => t.function.name)).toEqual([
+    const funcionales = assistant.model.tools.filter(
+      (t): t is (typeof assistantTools)[number] => t.type === 'function',
+    );
+    expect(funcionales).toEqual([...assistantTools]);
+    expect(funcionales.map((t) => t.function.name)).toEqual([
       'verificar_disponibilidad',
       'agendar_cita',
       'registrar_resultado',
       'marcar_no_contactar',
     ]);
+  });
+
+  it('incluye la tool endCall para que el asistente pueda colgar', () => {
+    const assistant = buildAssistant();
+    expect(assistant.model.tools).toContainEqual({ type: 'endCall' });
+    // endCall va al final, después de las tools funcionales
+    expect(assistant.model.tools.at(-1)).toEqual({ type: 'endCall' });
   });
 
   it('usa provider anthropic con el modelo de config', () => {
@@ -145,13 +157,14 @@ describe('buildAssistant — assistant transient completo', () => {
     });
   });
 
-  it('configura el transcriber en español (Deepgram)', () => {
+  it('configura el transcriber en español latinoamericano (Deepgram, desde config)', () => {
     const assistant = buildAssistant();
     expect(assistant.transcriber).toEqual({
       provider: 'deepgram',
-      model: 'nova-2',
-      language: 'es',
+      model: mockConfig.VAPI_TRANSCRIBER_MODEL,
+      language: mockConfig.VAPI_TRANSCRIBER_LANGUAGE,
     });
+    expect(assistant.transcriber.language).toBe('es-419');
   });
 
   it('configura la voz ElevenLabs multilingüe con el voiceId de config', () => {

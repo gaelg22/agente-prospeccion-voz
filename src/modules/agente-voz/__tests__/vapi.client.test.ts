@@ -10,6 +10,8 @@ vi.mock('../../../config', () => ({
     VAPI_PHONE_NUMBER_ID: 'phone-number-test-id',
     VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
     VAPI_VOICE_ID: 'voz-de-prueba',
+    VAPI_TRANSCRIBER_MODEL: 'nova-2',
+    VAPI_TRANSCRIBER_LANGUAGE: 'es-419',
     AGENTE_NOMBRE: 'Sofía',
     EMPRESA_NOMBRE: 'Seguros Test S.A.',
     TELEFONO_OFICIAL: '55 1234 5678',
@@ -28,7 +30,7 @@ const paramsBase = {
 };
 
 describe('buildOutboundCallPayload — payload exacto para POST /call', () => {
-  it('incluye el assistant transient completo: prompt + 4 tools + modelo', () => {
+  it('incluye el assistant transient completo: prompt + 4 tools + endCall + modelo', () => {
     const payload = buildOutboundCallPayload(paramsBase);
 
     expect(payload.assistant.model.messages[0]).toEqual({
@@ -37,11 +39,14 @@ describe('buildOutboundCallPayload — payload exacto para POST /call', () => {
     });
     expect(payload.assistant.model.provider).toBe('anthropic');
     expect(payload.assistant.model.model).toBe('claude-sonnet-4-5-20250929');
-    expect(payload.assistant.model.tools.map((t) => t.function.name)).toEqual([
+    expect(
+      payload.assistant.model.tools.map((t) => (t.type === 'function' ? t.function.name : t.type)),
+    ).toEqual([
       'verificar_disponibilidad',
       'agendar_cita',
       'registrar_resultado',
       'marcar_no_contactar',
+      'endCall',
     ]);
   });
 

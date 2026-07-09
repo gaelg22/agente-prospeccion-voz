@@ -30,6 +30,10 @@ const envSchema = z.object({
   // librería de ElevenLabs/Vapi; con el modelo multilingüe habla español).
   // Intercambiable por cualquier voiceId de ElevenLabs sin tocar código.
   VAPI_VOICE_ID: z.string().min(1).default('sarah'),
+  // Transcriber Deepgram del asistente. es-419 (español latinoamericano) es el
+  // enum preferido de Vapi para México — "es" a secas transcribe peor el acento.
+  VAPI_TRANSCRIBER_MODEL: z.string().min(1).default('nova-2'),
+  VAPI_TRANSCRIBER_LANGUAGE: z.string().min(1).default('es-419'),
 
   // ── DENUE / INEGI ────────────────────────────────────────────────────────
   DENUE_TOKEN: z.string().min(1, 'DENUE_TOKEN es requerida'),

@@ -27,6 +27,15 @@ export interface VapiTool {
   };
 }
 
+// Tool nativa de Vapi: permite al asistente colgar la llamada. Sin ella, tras
+// la despedida el asistente se queda mudo en la línea hasta que cuelga el
+// prospecto. (Reemplaza al booleano legado endCallFunctionEnabled.)
+export interface VapiEndCallTool {
+  type: 'endCall';
+}
+
+export const endCallTool: VapiEndCallTool = { type: 'endCall' };
+
 // ─── Desenlaces de llamada ────────────────────────────────────────────────────
 // Alineados a la máquina de estados del backend + casos operativos de llamada
 // (buzon y numero_equivocado se resuelven en call-outcome.handler).
@@ -104,7 +113,7 @@ export const assistantTools: readonly VapiTool[] = [
     function: {
       name: 'registrar_resultado',
       description:
-        'Registra el desenlace final de la llamada. OBLIGATORIO llamarla al final de toda llamada, sin excepción, justo antes de despedirse o colgar.',
+        'Registra el desenlace final de la llamada. OBLIGATORIO llamarla al final de toda llamada, sin excepción, DESPUÉS de decir la despedida completa y justo antes de colgar con endCall. Se ejecuta en silencio: nunca anuncies que la vas a usar ni pidas esperar.',
       parameters: {
         type: 'object',
         properties: {
@@ -207,7 +216,7 @@ export interface VapiTransientAssistant {
     provider: 'anthropic';
     model: string;
     messages: ReadonlyArray<{ role: 'system'; content: string }>;
-    tools: readonly VapiTool[];
+    tools: ReadonlyArray<VapiTool | VapiEndCallTool>;
   };
   transcriber: {
     provider: 'deepgram';
@@ -232,13 +241,16 @@ export function buildAssistant(): VapiTransientAssistant {
       provider: 'anthropic',
       model: config.VAPI_LLM_MODEL,
       messages: [{ role: 'system', content: systemPrompt }],
-      tools: assistantTools,
+      // endCall al final: sin ella el asistente no puede colgar y se queda
+      // mudo en la línea después de despedirse.
+      tools: [...assistantTools, endCallTool],
     },
-    // Español — sin esto Vapi usa defaults pensados para inglés.
+    // Español latinoamericano — sin esto Vapi usa defaults pensados para
+    // inglés y la transcripción del acento mexicano se degrada.
     transcriber: {
       provider: 'deepgram',
-      model: 'nova-2',
-      language: 'es',
+      model: config.VAPI_TRANSCRIBER_MODEL,
+      language: config.VAPI_TRANSCRIBER_LANGUAGE,
     },
     // eleven_multilingual_v2 habla español con cualquier voz de ElevenLabs.
     // Si la latencia de voz resulta alta, la alternativa es eleven_flash_v2_5.
