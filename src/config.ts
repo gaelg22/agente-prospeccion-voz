@@ -45,7 +45,7 @@ const envSchema = z.object({
   // PUBLIC_URL: base para construir el server.url de las tools de Vapi
   // (PUBLIC_URL + /webhooks/vapi). En producción debe ser la URL de Render.
   PUBLIC_URL: z.string().url().default('http://localhost:3000'),
-  AGENTE_NOMBRE: z.string().min(1).default('Laia'),
+  AGENTE_NOMBRE: z.string().min(1).default('Sofía'),
   EMPRESA_NOMBRE: z.string().min(1).default('Asesoría de Seguros (prueba)'),
   TELEFONO_OFICIAL: z.string().min(1).default('55 0000 0000'),
 

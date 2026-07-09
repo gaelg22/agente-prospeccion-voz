@@ -6,7 +6,7 @@ vi.mock('../../../config', () => ({
   config: {
     PUBLIC_URL: 'https://agente-test.onrender.com',
     VAPI_WEBHOOK_SECRET: 'secreto-de-prueba',
-    AGENTE_NOMBRE: 'Laia',
+    AGENTE_NOMBRE: 'Sofía',
     EMPRESA_NOMBRE: 'Seguros Test S.A.',
     TELEFONO_OFICIAL: '55 1234 5678',
     VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',

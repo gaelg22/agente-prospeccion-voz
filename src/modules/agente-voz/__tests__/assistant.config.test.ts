@@ -1,18 +1,21 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // ─── Mock de config — assistant.config lee estas envs al importarse ──────────
+// AGENTE_NOMBRE usa un valor que no coincide con el default de config.ts:
+// si alguien hardcodea el nombre en el prompt o el firstMessage, estos
+// asserts fallan.
 
-vi.mock('../../../config', () => ({
-  config: {
-    PUBLIC_URL: 'https://agente-test.onrender.com',
-    VAPI_WEBHOOK_SECRET: 'secreto-de-prueba',
-    AGENTE_NOMBRE: 'Laia',
-    EMPRESA_NOMBRE: 'Seguros Test S.A.',
-    TELEFONO_OFICIAL: '55 1234 5678',
-    VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
-    VAPI_VOICE_ID: 'voz-de-prueba',
-  },
+const mockConfig = vi.hoisted(() => ({
+  PUBLIC_URL: 'https://agente-test.onrender.com',
+  VAPI_WEBHOOK_SECRET: 'secreto-de-prueba',
+  AGENTE_NOMBRE: 'Valentina de Prueba',
+  EMPRESA_NOMBRE: 'Seguros Test S.A.',
+  TELEFONO_OFICIAL: '55 1234 5678',
+  VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
+  VAPI_VOICE_ID: 'voz-de-prueba',
 }));
+
+vi.mock('../../../config', () => ({ config: mockConfig }));
 
 import {
   assistantTools,
@@ -70,11 +73,8 @@ describe('assistantTools — estructura y server target', () => {
     vi.resetModules();
     vi.doMock('../../../config', () => ({
       config: {
+        ...mockConfig,
         PUBLIC_URL: 'https://otro-servicio.onrender.com/',
-        VAPI_WEBHOOK_SECRET: 'secreto-de-prueba',
-        AGENTE_NOMBRE: 'Laia',
-        EMPRESA_NOMBRE: 'Seguros Test S.A.',
-        TELEFONO_OFICIAL: '55 1234 5678',
       },
     }));
 
@@ -96,9 +96,9 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
   });
 
   it('sustituyó los tres placeholders con los valores de config', () => {
-    expect(systemPrompt).toContain('Laia');
-    expect(systemPrompt).toContain('Seguros Test S.A.');
-    expect(systemPrompt).toContain('55 1234 5678');
+    expect(systemPrompt).toContain(mockConfig.AGENTE_NOMBRE);
+    expect(systemPrompt).toContain(mockConfig.EMPRESA_NOMBRE);
+    expect(systemPrompt).toContain(mockConfig.TELEFONO_OFICIAL);
   });
 
   it('no incluye el encabezado instructivo del documento', () => {
@@ -165,8 +165,13 @@ describe('buildAssistant — assistant transient completo', () => {
 
   it('lleva firstMessage en español con la identidad y la variable del prospecto', () => {
     const assistant = buildAssistant();
-    expect(assistant.firstMessage).toContain('Laia');
-    expect(assistant.firstMessage).toContain('Seguros Test S.A.');
+    expect(assistant.firstMessage).toContain(mockConfig.AGENTE_NOMBRE);
+    expect(assistant.firstMessage).toContain(mockConfig.EMPRESA_NOMBRE);
     expect(assistant.firstMessage).toContain('{{prospecto_nombre}}');
+  });
+
+  it('el nombre del assistant también sale de AGENTE_NOMBRE', () => {
+    const assistant = buildAssistant();
+    expect(assistant.name).toBe(mockConfig.AGENTE_NOMBRE);
   });
 });
