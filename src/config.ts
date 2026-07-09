@@ -26,6 +26,10 @@ const envSchema = z.object({
   VAPI_PHONE_NUMBER_ID: z.string().min(1).optional(),
   // Modelo LLM del asistente de voz (enum propio de Vapi, provider anthropic).
   VAPI_LLM_MODEL: z.string().min(1).default('claude-sonnet-4-5-20250929'),
+  // Voz ElevenLabs del asistente. Default: "sarah" (preset femenino de la
+  // librería de ElevenLabs/Vapi; con el modelo multilingüe habla español).
+  // Intercambiable por cualquier voiceId de ElevenLabs sin tocar código.
+  VAPI_VOICE_ID: z.string().min(1).default('sarah'),
 
   // ── DENUE / INEGI ────────────────────────────────────────────────────────
   DENUE_TOKEN: z.string().min(1, 'DENUE_TOKEN es requerida'),

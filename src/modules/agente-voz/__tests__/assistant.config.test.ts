@@ -10,6 +10,7 @@ vi.mock('../../../config', () => ({
     EMPRESA_NOMBRE: 'Seguros Test S.A.',
     TELEFONO_OFICIAL: '55 1234 5678',
     VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
+    VAPI_VOICE_ID: 'voz-de-prueba',
   },
 }));
 
@@ -142,5 +143,30 @@ describe('buildAssistant — assistant transient completo', () => {
       url: 'https://agente-test.onrender.com/webhooks/vapi',
       secret: 'secreto-de-prueba',
     });
+  });
+
+  it('configura el transcriber en español (Deepgram)', () => {
+    const assistant = buildAssistant();
+    expect(assistant.transcriber).toEqual({
+      provider: 'deepgram',
+      model: 'nova-2',
+      language: 'es',
+    });
+  });
+
+  it('configura la voz ElevenLabs multilingüe con el voiceId de config', () => {
+    const assistant = buildAssistant();
+    expect(assistant.voice).toEqual({
+      provider: '11labs',
+      voiceId: 'voz-de-prueba',
+      model: 'eleven_multilingual_v2',
+    });
+  });
+
+  it('lleva firstMessage en español con la identidad y la variable del prospecto', () => {
+    const assistant = buildAssistant();
+    expect(assistant.firstMessage).toContain('Laia');
+    expect(assistant.firstMessage).toContain('Seguros Test S.A.');
+    expect(assistant.firstMessage).toContain('{{prospecto_nombre}}');
   });
 });

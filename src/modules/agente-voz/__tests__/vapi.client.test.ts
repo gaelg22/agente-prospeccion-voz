@@ -9,6 +9,7 @@ vi.mock('../../../config', () => ({
     VAPI_WEBHOOK_SECRET: 'secreto-de-prueba',
     VAPI_PHONE_NUMBER_ID: 'phone-number-test-id',
     VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
+    VAPI_VOICE_ID: 'voz-de-prueba',
     AGENTE_NOMBRE: 'Laia',
     EMPRESA_NOMBRE: 'Seguros Test S.A.',
     TELEFONO_OFICIAL: '55 1234 5678',

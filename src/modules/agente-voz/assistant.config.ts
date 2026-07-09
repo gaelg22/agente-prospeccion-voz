@@ -202,11 +202,22 @@ export const VARIABLES_DEFAULT = {
 
 export interface VapiTransientAssistant {
   name: string;
+  firstMessage: string;
   model: {
     provider: 'anthropic';
     model: string;
     messages: ReadonlyArray<{ role: 'system'; content: string }>;
     tools: readonly VapiTool[];
+  };
+  transcriber: {
+    provider: 'deepgram';
+    model: string;
+    language: string;
+  };
+  voice: {
+    provider: '11labs';
+    voiceId: string;
+    model: string;
   };
   server: VapiTool['server'];
 }
@@ -214,11 +225,27 @@ export interface VapiTransientAssistant {
 export function buildAssistant(): VapiTransientAssistant {
   return {
     name: config.AGENTE_NOMBRE,
+    // Apertura del Paso 1 del prompt. {{prospecto_nombre}} lo sustituye Vapi
+    // con assistantOverrides.variableValues, igual que en el system prompt.
+    firstMessage: `Hola, buenas. Le llama ${config.AGENTE_NOMBRE}, asistente virtual de ${config.EMPRESA_NOMBRE}. ¿Hablo con {{prospecto_nombre}}?`,
     model: {
       provider: 'anthropic',
       model: config.VAPI_LLM_MODEL,
       messages: [{ role: 'system', content: systemPrompt }],
       tools: assistantTools,
+    },
+    // Español — sin esto Vapi usa defaults pensados para inglés.
+    transcriber: {
+      provider: 'deepgram',
+      model: 'nova-2',
+      language: 'es',
+    },
+    // eleven_multilingual_v2 habla español con cualquier voz de ElevenLabs.
+    // Si la latencia de voz resulta alta, la alternativa es eleven_flash_v2_5.
+    voice: {
+      provider: '11labs',
+      voiceId: config.VAPI_VOICE_ID,
+      model: 'eleven_multilingual_v2',
     },
     server: webhookServer,
   };
