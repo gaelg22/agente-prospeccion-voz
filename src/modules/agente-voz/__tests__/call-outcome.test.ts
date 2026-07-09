@@ -1,9 +1,24 @@
-import { describe, it, expect } from 'vitest';
-import { mapearDesenlace } from '../call-outcome.handler';
+import { describe, it, expect, vi } from 'vitest';
 
-describe('mapearDesenlace — desenlaces positivos', () => {
-  it('interesado → acepto, sin reintento', () => {
-    const r = mapearDesenlace('interesado', 1);
+// assistant.config lee config al importarse — mock necesario (config.ts hace
+// process.exit() si faltan envs)
+vi.mock('../../../config', () => ({
+  config: {
+    PUBLIC_URL: 'https://agente-test.onrender.com',
+    VAPI_WEBHOOK_SECRET: 'secreto-de-prueba',
+    AGENTE_NOMBRE: 'Laia',
+    EMPRESA_NOMBRE: 'Seguros Test S.A.',
+    TELEFONO_OFICIAL: '55 1234 5678',
+    VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
+  },
+}));
+
+import { mapearDesenlace } from '../call-outcome.handler';
+import { DESENLACES_LLAMADA } from '../assistant.config';
+
+describe('mapearDesenlace — desenlace positivo', () => {
+  it('acepto → acepto, sin reintento', () => {
+    const r = mapearDesenlace('acepto', 1);
     expect(r.nuevoStatus).toBe('acepto');
     expect(r.debeReintentar).toBe(false);
   });
@@ -22,12 +37,6 @@ describe('mapearDesenlace — rechazos terminales', () => {
     expect(r.debeReintentar).toBe(false);
   });
 
-  it('numero_incorrecto → no_contactable, sin reintento', () => {
-    const r = mapearDesenlace('numero_incorrecto', 0);
-    expect(r.nuevoStatus).toBe('no_contactable');
-    expect(r.debeReintentar).toBe(false);
-  });
-
   it('interesado_sin_espacio → interesado_sin_espacio, sin reintento', () => {
     const r = mapearDesenlace('interesado_sin_espacio', 1);
     expect(r.nuevoStatus).toBe('interesado_sin_espacio');
@@ -35,45 +44,48 @@ describe('mapearDesenlace — rechazos terminales', () => {
   });
 });
 
-describe('mapearDesenlace — sin respuesta (reintento 1 vez)', () => {
-  it('no_contesto (intentos=1) → listo_llamar + debeReintentar', () => {
-    const r = mapearDesenlace('no_contesto', 1);
-    expect(r.nuevoStatus).toBe('listo_llamar');
-    expect(r.debeReintentar).toBe(true);
-  });
-
-  it('buzon (intentos=1) → listo_llamar + debeReintentar', () => {
+describe('mapearDesenlace — casos operativos (reintento 1 vez)', () => {
+  it('buzon (intento 1) → listo_llamar + debeReintentar', () => {
     const r = mapearDesenlace('buzon', 1);
     expect(r.nuevoStatus).toBe('listo_llamar');
     expect(r.debeReintentar).toBe(true);
   });
 
-  it('no_contesto (intentos=2) → no_contactable, sin reintento', () => {
-    const r = mapearDesenlace('no_contesto', 2);
-    expect(r.nuevoStatus).toBe('no_contactable');
-    expect(r.debeReintentar).toBe(false);
-  });
-
-  it('buzon (intentos=2) → no_contactable, sin reintento', () => {
+  it('buzon (intento 2) → no_contactable, sin reintento', () => {
     const r = mapearDesenlace('buzon', 2);
     expect(r.nuevoStatus).toBe('no_contactable');
     expect(r.debeReintentar).toBe(false);
   });
 
-  it('no_contesto (intentos=0) → listo_llamar + debeReintentar', () => {
-    const r = mapearDesenlace('no_contesto', 0);
+  it('numero_equivocado (intento 1) → listo_llamar + debeReintentar', () => {
+    const r = mapearDesenlace('numero_equivocado', 1);
+    expect(r.nuevoStatus).toBe('listo_llamar');
+    expect(r.debeReintentar).toBe(true);
+  });
+
+  it('numero_equivocado (intento 2) → no_contactable, sin reintento', () => {
+    const r = mapearDesenlace('numero_equivocado', 2);
+    expect(r.nuevoStatus).toBe('no_contactable');
+    expect(r.debeReintentar).toBe(false);
+  });
+
+  it('buzon (intento 0) → listo_llamar + debeReintentar', () => {
+    const r = mapearDesenlace('buzon', 0);
     expect(r.nuevoStatus).toBe('listo_llamar');
     expect(r.debeReintentar).toBe(true);
   });
 });
 
-describe('mapearDesenlace — forma de la respuesta', () => {
-  it('siempre devuelve nuevoStatus, nota y debeReintentar', () => {
-    const r = mapearDesenlace('interesado', 1);
-    expect(r).toHaveProperty('nuevoStatus');
-    expect(r).toHaveProperty('nota');
-    expect(r).toHaveProperty('debeReintentar');
-    expect(typeof r.nota).toBe('string');
-    expect(r.nota.length).toBeGreaterThan(0);
+describe('mapearDesenlace — cobertura exhaustiva', () => {
+  it('mapea TODOS los desenlaces de DESENLACES_LLAMADA (fuente única)', () => {
+    expect(DESENLACES_LLAMADA).toHaveLength(6);
+    for (const desenlace of DESENLACES_LLAMADA) {
+      const r = mapearDesenlace(desenlace, 1);
+      expect(r).toHaveProperty('nuevoStatus');
+      expect(r).toHaveProperty('nota');
+      expect(r).toHaveProperty('debeReintentar');
+      expect(typeof r.nota).toBe('string');
+      expect(r.nota.length).toBeGreaterThan(0);
+    }
   });
 });

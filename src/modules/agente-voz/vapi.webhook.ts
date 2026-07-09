@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { config } from '../../config';
 import { logger } from '../../lib/logger';
-import { zVapiWebhookBody, VapiToolCallsResponse } from './vapi.zod';
+import { zVapiWebhookBody, VapiToolCallsResponse, leadIdDeLlamada } from './vapi.zod';
 import { TOOL_HANDLERS } from './tool-handlers';
 import { Lead } from '../leads/lead.schema';
 
@@ -49,12 +49,15 @@ vapiWebhookRouter.post('/', async (req: Request, res: Response, next: NextFuncti
     }
 
     const { message } = parsed.data;
-    logger.debug({ type: message.type, callId: message.call?.id }, 'Webhook Vapi recibido');
+    // Correlación única llamada→lead: metadata.leadId (se envía al crear la llamada)
+    const leadId = leadIdDeLlamada(message.call);
+    logger.debug({ type: message.type, callId: message.call?.id, leadId }, 'Webhook Vapi recibido');
 
     // ── tool-calls ────────────────────────────────────────────────────────
     if (message.type === 'tool-calls') {
       const toolCalls = message.toolCallList ?? [];
       const results: VapiToolCallsResponse['results'] = [];
+      const ctx = { leadId, callId: message.call?.id };
 
       for (const toolCall of toolCalls) {
         const handler = TOOL_HANDLERS[toolCall.function.name];
@@ -72,7 +75,7 @@ vapiWebhookRouter.post('/', async (req: Request, res: Response, next: NextFuncti
         }
 
         try {
-          const result = await handler(toolCall);
+          const result = await handler(toolCall, ctx);
           results.push(result);
         } catch (err) {
           logger.error(
@@ -93,7 +96,6 @@ vapiWebhookRouter.post('/', async (req: Request, res: Response, next: NextFuncti
 
     // ── call-started ──────────────────────────────────────────────────────
     if (message.type === 'call-started' && message.call) {
-      const leadId = message.call.metadata?.['leadId'];
       logger.info({ callId: message.call.id, leadId }, 'Llamada iniciada');
     }
 
@@ -105,7 +107,7 @@ vapiWebhookRouter.post('/', async (req: Request, res: Response, next: NextFuncti
         {
           callId: message.call.id,
           endedReason: message.call.endedReason,
-          leadId: message.call.metadata?.['leadId'],
+          leadId,
         },
         'Llamada finalizada — desenlace esperado vía tool registrar_resultado',
       );
@@ -113,7 +115,6 @@ vapiWebhookRouter.post('/', async (req: Request, res: Response, next: NextFuncti
 
     // ── transcript ────────────────────────────────────────────────────────
     if (message.type === 'transcript' && message.call) {
-      const leadId = message.call.metadata?.['leadId'];
       const texto = message.transcript;
       const rol = message.role;
 

@@ -184,3 +184,42 @@ function cargarSystemPrompt(): string {
 }
 
 export const systemPrompt = cargarSystemPrompt();
+
+// ─── Defaults de variables del prompt ─────────────────────────────────────────
+// El prompt usa {{prospecto_nombre}} y {{especialidad}} (Vapi las sustituye con
+// assistantOverrides.variableValues). Estos defaults aplican cuando el lead no
+// trae el dato.
+
+export const VARIABLES_DEFAULT = {
+  prospecto_nombre: 'doctor(a)',
+  especialidad: 'servicios profesionales',
+} as const;
+
+// ─── Assistant transient ──────────────────────────────────────────────────────
+// Se manda completo en cada POST /call (nada vive en el dashboard de Vapi):
+// prompt + tools + modelo + server para que TODOS los eventos de la llamada
+// lleguen a nuestro webhook.
+
+export interface VapiTransientAssistant {
+  name: string;
+  model: {
+    provider: 'anthropic';
+    model: string;
+    messages: ReadonlyArray<{ role: 'system'; content: string }>;
+    tools: readonly VapiTool[];
+  };
+  server: VapiTool['server'];
+}
+
+export function buildAssistant(): VapiTransientAssistant {
+  return {
+    name: config.AGENTE_NOMBRE,
+    model: {
+      provider: 'anthropic',
+      model: config.VAPI_LLM_MODEL,
+      messages: [{ role: 'system', content: systemPrompt }],
+      tools: assistantTools,
+    },
+    server: webhookServer,
+  };
+}

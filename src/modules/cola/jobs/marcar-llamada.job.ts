@@ -36,9 +36,12 @@ export function defineMarcarLlamadaJob(agenda: Agenda): void {
     logger.info({ leadId: lead._id.toString(), telefono: lead.telefono }, 'Initiating Vapi call');
 
     const vapiClient = new VapiClient();
-    const call = await vapiClient.createCall(lead.telefono, {
+    const call = await vapiClient.createCall({
+      toNumber: lead.telefono,
       leadId: lead._id.toString(),
-      razonSocial: lead.razonSocial,
+      prospectoNombre: lead.nombreComercial ?? lead.razonSocial,
+      especialidad: lead.actividadEconomica,
+      metadata: { razonSocial: lead.razonSocial },
     });
 
     await LeadService.transition(lead._id, 'llamado', {

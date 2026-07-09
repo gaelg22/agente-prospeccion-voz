@@ -15,8 +15,17 @@ const envSchema = z.object({
 
   // ── Vapi (voz) ───────────────────────────────────────────────────────────
   VAPI_API_KEY: z.string().min(1, 'VAPI_API_KEY es requerida'),
-  VAPI_ASSISTANT_ID: z.string().min(1, 'VAPI_ASSISTANT_ID es requerida'),
+  // Legado: el assistant ahora se manda transient en cada llamada
+  // (assistant.config.ts), no se referencia por ID. Se acepta para no romper
+  // deploys que aún la definen.
+  VAPI_ASSISTANT_ID: z.string().min(1).optional(),
   VAPI_WEBHOOK_SECRET: z.string().min(1, 'VAPI_WEBHOOK_SECRET es requerida'),
+  // Número saliente registrado en Vapi. Sin él, Vapi rechaza la creación de
+  // llamadas telefónicas; se valida al momento de marcar (no al arrancar)
+  // para no bloquear entornos donde la cola está apagada.
+  VAPI_PHONE_NUMBER_ID: z.string().min(1).optional(),
+  // Modelo LLM del asistente de voz (enum propio de Vapi, provider anthropic).
+  VAPI_LLM_MODEL: z.string().min(1).default('claude-sonnet-4-5-20250929'),
 
   // ── DENUE / INEGI ────────────────────────────────────────────────────────
   DENUE_TOKEN: z.string().min(1, 'DENUE_TOKEN es requerida'),

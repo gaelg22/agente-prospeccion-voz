@@ -1,4 +1,4 @@
-import { DesenlaceLlamada } from './vapi.zod';
+import type { DesenlaceLlamada } from './assistant.config';
 import { LeadStatus } from '../leads/lead.schema';
 
 // ─── Resultado de la resolución ───────────────────────────────────────────────
@@ -13,16 +13,16 @@ export interface OutcomeResult {
 }
 
 /**
- * Mapea el desenlace reportado por el asistente de voz
- * al status correspondiente en la máquina de estados del lead.
+ * Mapea el desenlace reportado por el asistente de voz (los 6 valores de
+ * DESENLACES_LLAMADA en assistant.config) al status correspondiente en la
+ * máquina de estados del lead.
  *
  * Reglas de negocio:
- * - interesado → acepto (quiere saber más; se agenda cita)
+ * - acepto → acepto (agendó cita; queda esperando confirmación/agendado)
  * - no_interesado → no_interesado (terminal, no volver a llamar)
- * - no_contesto / buzon → listo_llamar si intentos < 2, si no → no_contactable
- * - no_contactar → no_contactar (terminal inmediato, el cliente lo pidió)
- * - numero_incorrecto → no_contactable (terminal, no hay forma de contactar)
  * - interesado_sin_espacio → interesado_sin_espacio (terminal, seguimiento manual)
+ * - no_contactar → no_contactar (terminal inmediato, el cliente lo pidió)
+ * - buzon / numero_equivocado → listo_llamar si intentos < 2, si no → no_contactable
  */
 export function mapearDesenlace(
   desenlace: DesenlaceLlamada,
@@ -30,10 +30,10 @@ export function mapearDesenlace(
 ): OutcomeResult {
   switch (desenlace) {
     // ── Positivo ──────────────────────────────────────────────────────────
-    case 'interesado':
+    case 'acepto':
       return {
         nuevoStatus: 'acepto',
-        nota: 'Lead interesado — solicitud de cita iniciada',
+        nota: 'Lead aceptó — cita en proceso de agendarse',
         debeReintentar: false,
       };
 
@@ -52,13 +52,6 @@ export function mapearDesenlace(
         debeReintentar: false,
       };
 
-    case 'numero_incorrecto':
-      return {
-        nuevoStatus: 'no_contactable',
-        nota: 'Número incorrecto o fuera de servicio',
-        debeReintentar: false,
-      };
-
     case 'interesado_sin_espacio':
       return {
         nuevoStatus: 'interesado_sin_espacio',
@@ -66,10 +59,10 @@ export function mapearDesenlace(
         debeReintentar: false,
       };
 
-    // ── Sin respuesta — reintento (máximo 1) ──────────────────────────────
-    case 'no_contesto':
-    case 'buzon': {
-      const etiqueta = desenlace === 'buzon' ? 'Buzón de voz' : 'Sin respuesta';
+    // ── Casos operativos — reintento (máximo 1) ───────────────────────────
+    case 'buzon':
+    case 'numero_equivocado': {
+      const etiqueta = desenlace === 'buzon' ? 'Buzón de voz' : 'Número equivocado';
       if (intentosActuales >= 2) {
         return {
           nuevoStatus: 'no_contactable',

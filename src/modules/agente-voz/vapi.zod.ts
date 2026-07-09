@@ -1,19 +1,12 @@
 import { z } from 'zod';
+import { DESENLACES_LLAMADA } from './assistant.config';
 
 // ─── Desenlaces que reporta el asistente de voz ───────────────────────────────
-// El asistente llama a registrar_resultado con uno de estos valores.
+// Fuente única: assistant.config.ts (mismo enum que ve el LLM en la tool
+// registrar_resultado). Aquí solo se re-exporta para validación.
 
-export const DESENLACES_LLAMADA = [
-  'interesado',           // quiere saber más / agendar cita
-  'no_interesado',        // rechazó explícitamente el producto
-  'no_contesto',          // no levantó el teléfono
-  'buzon',                // fue directo a buzón
-  'no_contactar',         // pidió que no le llamen más
-  'numero_incorrecto',    // número equivocado / fuera de servicio
-  'interesado_sin_espacio', // interesado pero sin disponibilidad esta semana
-] as const;
-
-export type DesenlaceLlamada = (typeof DESENLACES_LLAMADA)[number];
+export { DESENLACES_LLAMADA } from './assistant.config';
+export type { DesenlaceLlamada } from './assistant.config';
 
 // ─── Tool-call individual ─────────────────────────────────────────────────────
 
@@ -29,39 +22,53 @@ export const zToolCall = z.object({
 export type VapiToolCall = z.infer<typeof zToolCall>;
 
 // ─── Argumentos tipados por tool ──────────────────────────────────────────────
+// Espejo exacto de los parámetros declarados en assistant.config / vapi_tools:
+// el leadId NO es argumento — el backend lo recupera de metadata de la llamada.
 
 export const zArgsRegistrarResultado = z.object({
-  leadId: z.string().min(1),
   desenlace: z.enum(DESENLACES_LLAMADA),
-  nota: z.string().optional(),
+  notas: z.string().optional(),
 });
 
 export const zArgsMarcarNoContactar = z.object({
-  leadId: z.string().min(1),
-  razon: z.string().optional(),
+  motivo: z.string().optional(),
 });
 
 export const zArgsAgendarCita = z.object({
-  leadId: z.string().min(1),
-  fechaPreferida: z.string().optional(), // ISO date suggestion from assistant
-  horaPreferida: z.string().optional(),  // e.g. "10:00"
+  fecha: z.string().min(1), // YYYY-MM-DD
+  hora: z.string().min(1),  // HH:mm
+  notas: z.string().optional(),
 });
 
-export const zArgsVerificarDisponibilidad = z.object({
-  fecha: z.string(),  // YYYY-MM-DD
-});
+// verificar_disponibilidad no lleva parámetros — no requiere schema.
 
 // ─── Payload completo del webhook de Vapi ────────────────────────────────────
-// Vapi envía { message: { type: "tool-calls", toolCalls: [...], call: {...} } }
+// Vapi envía { message: { type: "tool-calls", toolCallList: [...], call: {...} } }
 // junto con otros tipos de mensajes (call-started, call-ended, transcript, etc.)
 
 const zCallInfo = z.object({
   id: z.string(),
   metadata: z.record(z.string()).optional(),
+  // El metadata que mandamos al crear la llamada viaja en assistantOverrides
+  assistantOverrides: z
+    .object({ metadata: z.record(z.string()).optional() })
+    .passthrough()
+    .optional(),
   endedReason: z.string().optional(),
   transcript: z.string().optional(),
   summary: z.string().optional(),
 }).passthrough(); // Permite campos adicionales sin fallar la validación
+
+export type VapiCallInfo = z.infer<typeof zCallInfo>;
+
+/**
+ * Recupera el leadId de la llamada. Única vía de correlación llamada→lead:
+ * lo mandamos en assistantOverrides.metadata al crear la llamada y algunos
+ * eventos lo exponen aplanado en call.metadata.
+ */
+export function leadIdDeLlamada(call: VapiCallInfo | undefined): string | undefined {
+  return call?.metadata?.['leadId'] ?? call?.assistantOverrides?.metadata?.['leadId'];
+}
 
 export const zVapiToolCallsMessage = z.object({
   message: z.object({

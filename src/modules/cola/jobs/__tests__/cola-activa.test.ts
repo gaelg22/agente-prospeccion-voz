@@ -111,13 +111,22 @@ describe('COLA_ACTIVA=true — los jobs ejecutan el flujo normal', () => {
       _id: new Types.ObjectId(),
       telefono: '+525512345678',
       razonSocial: 'Empresa Test S.A.',
+      nombreComercial: 'Consultorio Test',
+      actividadEconomica: 'Consultorios de medicina general',
     };
     vi.mocked(LeadService.findNextToCall).mockResolvedValue(lead as never);
 
     const handler = captureHandler(defineMarcarLlamadaJob);
     await handler({} as Job);
 
-    expect(createCallMock).toHaveBeenCalledWith('+525512345678', expect.any(Object));
+    expect(createCallMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toNumber: '+525512345678',
+        leadId: lead._id.toString(),
+        prospectoNombre: 'Consultorio Test',
+        especialidad: 'Consultorios de medicina general',
+      }),
+    );
     expect(LeadService.transition).toHaveBeenCalledWith(
       lead._id,
       'llamado',
@@ -131,13 +140,22 @@ describe('COLA_ACTIVA=true — los jobs ejecutan el flujo normal', () => {
       status: 'listo_llamar',
       telefono: '+525512345678',
       razonSocial: 'Empresa Test S.A.',
+      actividadEconomica: 'Consultorios dentales',
     };
     vi.mocked(LeadService.findById).mockResolvedValue(lead as never);
 
     const handler = captureHandler(defineReintentoJob);
     await handler(makeReintentoJob(lead._id.toString()));
 
-    expect(createCallMock).toHaveBeenCalledWith('+525512345678', expect.any(Object));
+    expect(createCallMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toNumber: '+525512345678',
+        leadId: lead._id.toString(),
+        // sin nombreComercial cae a razonSocial
+        prospectoNombre: 'Empresa Test S.A.',
+        metadata: expect.objectContaining({ esReintento: 'true' }),
+      }),
+    );
     expect(LeadService.transition).toHaveBeenCalledWith(
       lead._id,
       'llamado',

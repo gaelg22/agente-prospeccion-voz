@@ -9,10 +9,16 @@ vi.mock('../../../config', () => ({
     AGENTE_NOMBRE: 'Laia',
     EMPRESA_NOMBRE: 'Seguros Test S.A.',
     TELEFONO_OFICIAL: '55 1234 5678',
+    VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
   },
 }));
 
-import { assistantTools, systemPrompt, DESENLACES_LLAMADA } from '../assistant.config';
+import {
+  assistantTools,
+  systemPrompt,
+  DESENLACES_LLAMADA,
+  buildAssistant,
+} from '../assistant.config';
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
 
@@ -102,5 +108,39 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
   it('conserva las variables {{...}} de Vapi (esas las llena Vapi, no el backend)', () => {
     expect(systemPrompt).toContain('{{prospecto_nombre}}');
     expect(systemPrompt).toContain('{{now}}');
+  });
+});
+
+// ─── Assistant transient ──────────────────────────────────────────────────────
+
+describe('buildAssistant — assistant transient completo', () => {
+  it('lleva el system prompt como primer mensaje del modelo', () => {
+    const assistant = buildAssistant();
+    expect(assistant.model.messages).toEqual([{ role: 'system', content: systemPrompt }]);
+  });
+
+  it('lleva las 4 tools de la especificación', () => {
+    const assistant = buildAssistant();
+    expect(assistant.model.tools).toBe(assistantTools);
+    expect(assistant.model.tools.map((t) => t.function.name)).toEqual([
+      'verificar_disponibilidad',
+      'agendar_cita',
+      'registrar_resultado',
+      'marcar_no_contactar',
+    ]);
+  });
+
+  it('usa provider anthropic con el modelo de config', () => {
+    const assistant = buildAssistant();
+    expect(assistant.model.provider).toBe('anthropic');
+    expect(assistant.model.model).toBe('claude-sonnet-4-5-20250929');
+  });
+
+  it('apunta el server del assistant al webhook (eventos de llamada)', () => {
+    const assistant = buildAssistant();
+    expect(assistant.server).toEqual({
+      url: 'https://agente-test.onrender.com/webhooks/vapi',
+      secret: 'secreto-de-prueba',
+    });
   });
 });

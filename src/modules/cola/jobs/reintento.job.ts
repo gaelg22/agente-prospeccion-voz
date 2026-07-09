@@ -47,10 +47,12 @@ export function defineReintentoJob(agenda: Agenda): void {
 
     // Second attempt — if this also fails, the webhook handler will mark no_contactable
     const vapiClient = new VapiClient();
-    const call = await vapiClient.createCall(lead.telefono, {
+    const call = await vapiClient.createCall({
+      toNumber: lead.telefono,
       leadId: lead._id.toString(),
-      razonSocial: lead.razonSocial,
-      esReintento: 'true',
+      prospectoNombre: lead.nombreComercial ?? lead.razonSocial,
+      especialidad: lead.actividadEconomica,
+      metadata: { razonSocial: lead.razonSocial, esReintento: 'true' },
     });
 
     await LeadService.transition(lead._id, 'llamado', {

@@ -4,11 +4,17 @@ import request from 'supertest';
 
 // ─── Mocks antes de importar el router ───────────────────────────────────────
 
-// Config mock — necesario porque config.ts hace process.exit() si faltan vars
+// Config mock — necesario porque config.ts hace process.exit() si faltan vars.
+// vapi.zod importa assistant.config, que lee PUBLIC_URL y la identidad al cargar.
 vi.mock('../../../config', () => ({
   config: {
     NODE_ENV: 'test',
     VAPI_WEBHOOK_SECRET: 'secreto-de-prueba-exacto',
+    PUBLIC_URL: 'https://agente-test.onrender.com',
+    AGENTE_NOMBRE: 'Laia',
+    EMPRESA_NOMBRE: 'Seguros Test S.A.',
+    TELEFONO_OFICIAL: '55 1234 5678',
+    VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
   },
 }));
 
@@ -30,6 +36,7 @@ vi.mock('../../leads/lead.schema', () => ({
 
 // Importar el router DESPUÉS de configurar los mocks
 import { vapiWebhookRouter } from '../vapi.webhook';
+import { TOOL_HANDLERS } from '../tool-handlers';
 
 // ─── App de prueba ────────────────────────────────────────────────────────────
 
@@ -139,7 +146,7 @@ describe('POST /webhooks/vapi — tool-calls', () => {
             type: 'function',
             function: {
               name: 'registrar_resultado',
-              arguments: { leadId: 'lead123', desenlace: 'interesado' },
+              arguments: { desenlace: 'acepto' },
             },
           },
         ],
@@ -155,6 +162,55 @@ describe('POST /webhooks/vapi — tool-calls', () => {
     expect(res.body).toHaveProperty('results');
     expect(Array.isArray(res.body.results)).toBe(true);
     expect(res.body.results[0]).toHaveProperty('toolCallId', 'tc-001');
+  });
+
+  it('pasa el leadId de call.metadata a los handlers como contexto', async () => {
+    const payload = {
+      message: {
+        type: 'tool-calls',
+        call: { id: 'call-abc', metadata: { leadId: 'lead-desde-metadata' } },
+        toolCallList: [
+          {
+            id: 'tc-002',
+            type: 'function',
+            function: { name: 'registrar_resultado', arguments: { desenlace: 'acepto' } },
+          },
+        ],
+      },
+    };
+
+    await request(app).post('/webhooks/vapi').set(HEADERS).send(payload);
+
+    expect(TOOL_HANDLERS['registrar_resultado']).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'tc-002' }),
+      expect.objectContaining({ leadId: 'lead-desde-metadata', callId: 'call-abc' }),
+    );
+  });
+
+  it('recupera el leadId también desde call.assistantOverrides.metadata', async () => {
+    const payload = {
+      message: {
+        type: 'tool-calls',
+        call: {
+          id: 'call-def',
+          assistantOverrides: { metadata: { leadId: 'lead-desde-overrides' } },
+        },
+        toolCallList: [
+          {
+            id: 'tc-003',
+            type: 'function',
+            function: { name: 'registrar_resultado', arguments: { desenlace: 'acepto' } },
+          },
+        ],
+      },
+    };
+
+    await request(app).post('/webhooks/vapi').set(HEADERS).send(payload);
+
+    expect(TOOL_HANDLERS['registrar_resultado']).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ leadId: 'lead-desde-overrides' }),
+    );
   });
 
   it('devuelve error en results para tool no registrado', async () => {
