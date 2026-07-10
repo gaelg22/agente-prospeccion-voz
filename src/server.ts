@@ -63,6 +63,47 @@ export function buildApp(): express.Application {
   return app;
 }
 
+// ── Self-check de PUBLIC_URL (solo fuera de producción) ───────────────────────
+// Los quick tunnels de cloudflare rotan de URL en cada arranque; si .env quedó
+// con una URL muerta, las tools de Vapi fallan con ENOTFOUND a mitad de la
+// llamada. Este check avisa al arrancar — no tumba el proceso.
+// Reintenta porque un túnel recién creado puede tardar en propagarse en el DNS
+// local aunque ya sea alcanzable desde afuera (Vapi resuelve por su cuenta).
+async function checkPublicUrl(): Promise<void> {
+  const url = `${config.PUBLIC_URL.replace(/\/+$/, '')}/health`;
+  const intentos = 4;
+  const pausaMs = 15_000;
+
+  let ultimoError = 'desconocido';
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+      if (!res.ok) throw new Error(`respondió con status ${res.status}`);
+      logger.info({ url, intento: i }, 'PUBLIC_URL responde — las tools de Vapi pueden llegar');
+      return;
+    } catch (err) {
+      ultimoError = err instanceof Error ? err.message : String(err);
+      if (i < intentos) {
+        logger.debug({ url, intento: i, err: ultimoError }, 'PUBLIC_URL no respondió — reintentando');
+        await new Promise((r) => setTimeout(r, pausaMs));
+      }
+    }
+  }
+
+  logger.warn(
+    { url, err: ultimoError },
+    '\n' +
+      '⚠️ ═══════════════════════════════════════════════════════════════════\n' +
+      '⚠️  PUBLIC_URL NO RESPONDE — LAS TOOLS DE VAPI NO PODRÁN LLEGAR AQUÍ\n' +
+      `⚠️  GET ${url} falló ${intentos} veces (timeout 5 s c/u).\n` +
+      '⚠️  Si el túnel de cloudflare rotó, arranca con: npm run dev:tunnel\n' +
+      '⚠️  (actualiza PUBLIC_URL en .env y levanta el server ya alineados).\n' +
+      '⚠️  Ojo: si el túnel se acaba de crear, puede ser solo propagación DNS\n' +
+      '⚠️  local — Vapi resuelve por su cuenta; verifica con: nslookup <host> 1.1.1.1\n' +
+      '⚠️ ═══════════════════════════════════════════════════════════════════',
+  );
+}
+
 async function main(): Promise<void> {
   await connectDB();
   await startAgenda();
@@ -70,6 +111,10 @@ async function main(): Promise<void> {
   const app = buildApp();
   const server = app.listen(config.PORT, () => {
     logger.info({ port: config.PORT, env: config.NODE_ENV }, '🚀 Servidor escuchando');
+
+    if (config.NODE_ENV !== 'production') {
+      void checkPublicUrl();
+    }
   });
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
