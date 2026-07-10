@@ -13,7 +13,7 @@ export interface OutcomeResult {
 }
 
 /**
- * Mapea el desenlace reportado por el asistente de voz (los 6 valores de
+ * Mapea el desenlace reportado por el asistente de voz (los 7 valores de
  * DESENLACES_LLAMADA en assistant.config) al status correspondiente en la
  * máquina de estados del lead.
  *
@@ -22,7 +22,8 @@ export interface OutcomeResult {
  * - no_interesado → no_interesado (terminal, no volver a llamar)
  * - interesado_sin_espacio → interesado_sin_espacio (terminal, seguimiento manual)
  * - no_contactar → no_contactar (terminal inmediato, el cliente lo pidió)
- * - buzon / numero_equivocado → listo_llamar si intentos < 2, si no → no_contactable
+ * - buzon / numero_equivocado / error_tecnico → listo_llamar si intentos < 2,
+ *   si no → no_contactable
  */
 export function mapearDesenlace(
   desenlace: DesenlaceLlamada,
@@ -60,9 +61,17 @@ export function mapearDesenlace(
       };
 
     // ── Casos operativos — reintento (máximo 1) ───────────────────────────
+    // error_tecnico: las herramientas fallaron a mitad de llamada y el agente
+    // prometió devolver la llamada — el lead debe recuperarse solo.
     case 'buzon':
-    case 'numero_equivocado': {
-      const etiqueta = desenlace === 'buzon' ? 'Buzón de voz' : 'Número equivocado';
+    case 'numero_equivocado':
+    case 'error_tecnico': {
+      const etiqueta =
+        desenlace === 'buzon'
+          ? 'Buzón de voz'
+          : desenlace === 'numero_equivocado'
+            ? 'Número equivocado'
+            : 'Falla técnica de herramientas durante la llamada';
       if (intentosActuales >= 2) {
         return {
           nuevoStatus: 'no_contactable',

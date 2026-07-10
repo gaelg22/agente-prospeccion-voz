@@ -74,11 +74,24 @@ describe('mapearDesenlace — casos operativos (reintento 1 vez)', () => {
     expect(r.nuevoStatus).toBe('listo_llamar');
     expect(r.debeReintentar).toBe(true);
   });
+
+  it('error_tecnico (intento 1) → listo_llamar + debeReintentar (el lead se recupera solo)', () => {
+    const r = mapearDesenlace('error_tecnico', 1);
+    expect(r.nuevoStatus).toBe('listo_llamar');
+    expect(r.debeReintentar).toBe(true);
+    expect(r.nota).toContain('Falla técnica');
+  });
+
+  it('error_tecnico (intento 2) → no_contactable, sin reintento', () => {
+    const r = mapearDesenlace('error_tecnico', 2);
+    expect(r.nuevoStatus).toBe('no_contactable');
+    expect(r.debeReintentar).toBe(false);
+  });
 });
 
 describe('mapearDesenlace — cobertura exhaustiva', () => {
   it('mapea TODOS los desenlaces de DESENLACES_LLAMADA (fuente única)', () => {
-    expect(DESENLACES_LLAMADA).toHaveLength(6);
+    expect(DESENLACES_LLAMADA).toHaveLength(7);
     for (const desenlace of DESENLACES_LLAMADA) {
       const r = mapearDesenlace(desenlace, 1);
       expect(r).toHaveProperty('nuevoStatus');

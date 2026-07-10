@@ -10,8 +10,18 @@ export interface VapiToolProperty {
   enum?: readonly string[];
 }
 
+// Mensaje que Vapi dice de viva voz durante el ciclo de una tool.
+// request-failed suena cuando el server no responde o regresa error — evita el
+// silencio incómodo mientras el modelo decide cómo seguir. Formato vigente
+// verificado en https://docs.vapi.ai/api-reference/tools/create (jul 2026).
+export interface VapiToolMessage {
+  type: 'request-failed';
+  content: string;
+}
+
 export interface VapiTool {
   type: 'function';
+  messages?: readonly VapiToolMessage[];
   function: {
     name: string;
     description: string;
@@ -47,6 +57,7 @@ export const DESENLACES_LLAMADA = [
   'no_contactar',
   'buzon',
   'numero_equivocado',
+  'error_tecnico',
 ] as const;
 
 export type DesenlaceLlamada = (typeof DESENLACES_LLAMADA)[number];
@@ -67,6 +78,12 @@ const webhookServer: VapiTool['server'] = {
 export const assistantTools: readonly VapiTool[] = [
   {
     type: 'function',
+    messages: [
+      {
+        type: 'request-failed',
+        content: 'Deme un momentito, por favor.',
+      },
+    ],
     function: {
       name: 'verificar_disponibilidad',
       description:
@@ -81,6 +98,12 @@ export const assistantTools: readonly VapiTool[] = [
   },
   {
     type: 'function',
+    messages: [
+      {
+        type: 'request-failed',
+        content: 'Deme un momentito, por favor.',
+      },
+    ],
     function: {
       name: 'agendar_cita',
       description:
@@ -121,7 +144,7 @@ export const assistantTools: readonly VapiTool[] = [
             type: 'string',
             enum: DESENLACES_LLAMADA,
             description:
-              'acepto = agendó cita · no_interesado = rechazó · interesado_sin_espacio = quería pero ningún horario le quedó · no_contactar = pidió no ser contactado · buzon = contestó buzón de voz · numero_equivocado = no era la persona',
+              'acepto = agendó cita · no_interesado = rechazó · interesado_sin_espacio = quería pero ningún horario le quedó · no_contactar = pidió no ser contactado · buzon = contestó buzón de voz · numero_equivocado = no era la persona · error_tecnico = una herramienta falló o no respondió y no se pudo verificar/agendar (el sistema devuelve la llamada)',
           },
           notas: {
             type: 'string',

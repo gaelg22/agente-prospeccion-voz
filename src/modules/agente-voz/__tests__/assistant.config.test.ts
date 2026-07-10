@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
+import { readFileSync } from 'fs';
+import path from 'path';
 
 // ─── Mock de config — assistant.config lee estas envs al importarse ──────────
 // AGENTE_NOMBRE usa un valor que no coincide con el default de config.ts:
@@ -55,7 +57,7 @@ describe('assistantTools — estructura y server target', () => {
     expect(agendar?.function.parameters.required).toEqual(['fecha', 'hora']);
   });
 
-  it('el enum de registrar_resultado tiene exactamente los 6 desenlaces', () => {
+  it('el enum de registrar_resultado tiene exactamente los 7 desenlaces', () => {
     const registrar = assistantTools.find((t) => t.function.name === 'registrar_resultado');
     const desenlaces = registrar?.function.parameters.properties['desenlace']?.enum;
 
@@ -66,9 +68,35 @@ describe('assistantTools — estructura y server target', () => {
       'no_contactar',
       'buzon',
       'numero_equivocado',
+      'error_tecnico',
     ]);
-    expect(desenlaces).toHaveLength(6);
-    expect(DESENLACES_LLAMADA).toHaveLength(6);
+    expect(desenlaces).toHaveLength(7);
+    expect(DESENLACES_LLAMADA).toHaveLength(7);
+  });
+
+  it('las tools de agenda llevan mensaje request-failed (nunca silencio ante una falla)', () => {
+    for (const nombre of ['verificar_disponibilidad', 'agendar_cita']) {
+      const tool = assistantTools.find((t) => t.function.name === nombre);
+      expect(tool?.messages, nombre).toEqual([
+        { type: 'request-failed', content: 'Deme un momentito, por favor.' },
+      ]);
+    }
+  });
+
+  it('docs/vapi_tools.json es idéntico al código (functions, enums y messages)', () => {
+    const raw = readFileSync(path.resolve(process.cwd(), 'docs', 'vapi_tools.json'), 'utf8');
+    // El encabezado del doc son líneas de comentario // — no son JSON.
+    const sinComentarios = raw
+      .split(/\r?\n/)
+      .filter((linea) => !linea.trimStart().startsWith('//'))
+      .join('\n');
+    const doc = JSON.parse(sinComentarios) as Array<{
+      function: unknown;
+      messages?: unknown;
+    }>;
+
+    expect(doc.map((t) => t.function)).toEqual(assistantTools.map((t) => t.function));
+    expect(doc.map((t) => t.messages)).toEqual(assistantTools.map((t) => t.messages));
   });
 
   it('tolera PUBLIC_URL con slash final sin duplicar la diagonal', async () => {
