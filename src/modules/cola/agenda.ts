@@ -24,8 +24,11 @@ export async function startAgenda(): Promise<Agenda> {
   // Register job definitions (imported here to avoid circular deps)
   const { defineMarcarLlamadaJob } = await import('./jobs/marcar-llamada.job');
   const { defineReintentoJob } = await import('./jobs/reintento.job');
+  const { defineReconciliarLlamadasJob, JOB_NAME_RECONCILIAR, RECONCILIAR_CADA_MINUTOS } =
+    await import('./jobs/reconciliar-llamadas.job');
   defineMarcarLlamadaJob(agendaInstance);
   defineReintentoJob(agendaInstance);
+  defineReconciliarLlamadasJob(agendaInstance);
 
   agendaInstance.on('error', (err: Error) => logger.error({ err }, 'Agenda error'));
   agendaInstance.on('start', (job) => logger.debug({ jobName: job.attrs.name }, 'Job started'));
@@ -40,6 +43,10 @@ export async function startAgenda(): Promise<Agenda> {
   // Schedule the recurring call cadence job
   // Using a named job without the `unique` option (not in Agenda v5 JobOptions)
   await agendaInstance.every(`${config.CALL_CADENCE_MINUTES} minutes`, 'marcar-llamada');
+
+  // Reconciliación de llamadas cuyo webhook nunca llegó — corre SIEMPRE,
+  // con o sin COLA_ACTIVA (es limpieza, no dispara llamadas).
+  await agendaInstance.every(`${RECONCILIAR_CADA_MINUTOS} minutes`, JOB_NAME_RECONCILIAR);
 
   return agendaInstance;
 }
