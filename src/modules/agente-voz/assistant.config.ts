@@ -11,15 +11,22 @@ export interface VapiToolProperty {
 }
 
 // Mensaje que Vapi dice de viva voz durante el ciclo de una tool.
-// - request-failed: suena cuando el server regresa error o el request falla —
-//   evita el silencio incómodo mientras el modelo decide cómo seguir.
 // - request-response-delayed: suena si el server no ha respondido después de
 //   timingMilliseconds — respaldo hablado para cuando el server está colgado.
-// Formato vigente verificado en https://docs.vapi.ai/api-reference/tools/create
-// (jul 2026); timingMilliseconds = "ms a esperar la respuesta del server antes
-// de decir este mensaje".
+//   NO suprime el turno del modelo: cuando la respuesta (o el fallo) por fin
+//   llega, el modelo sigue conversando normal.
+// - request-failed NO se usa NUNCA (por eso no está en el tipo): según
+//   https://docs.vapi.ai/api-reference/tools/create (jul 2026) ese mensaje
+//   REEMPLAZA el turno del modelo — "only this message will be spoken and the
+//   model will not be requested to come up with a response. It's an exclusive
+//   OR" — y, a diferencia de request-complete, no acepta role:"system" para
+//   devolverle la palabra al modelo. Con él configurado, tras un fallo el LLM
+//   jamás vuelve a hablar ni ejecuta registrar_resultado (llamada de prueba
+//   del 11 jul: murió por silence-timed-out). El error debe llegarle LIMPIO
+//   al modelo para que aplique la REGLA DE FALLA TÉCNICA (sección 7 del
+//   prompt).
 export interface VapiToolMessage {
-  type: 'request-failed' | 'request-response-delayed';
+  type: 'request-response-delayed';
   content: string;
   timingMilliseconds?: number;
 }
@@ -77,20 +84,21 @@ const webhookServer: VapiTool['server'] = {
 };
 
 // ─── Mensajes de falla técnica de las tools de agenda ────────────────────────
-// Respaldo hablado de la REGLA DE FALLA TÉCNICA (sección 7 del prompt): si el
-// LLM se quedara callado tras un fallo (visto en la llamada de prueba del 10
-// jul), Vapi dice estas frases por sí mismo y el prospecto nunca escucha
-// silencio. La frase de disculpa es la variante neutra de la del prompt: los
-// tool messages se leen VERBATIM por el TTS, así que no puede llevar
-// "Doctor(a)" ni variables {{...}}.
+// Único respaldo hablado: request-response-delayed. Si el server no responde
+// en 10 s (colgado), Vapi dice la disculpa completa y el prospecto nunca
+// escucha silencio; cuando el request por fin resuelve o falla, el resultado
+// llega al modelo y él cierra según la sección 7 del prompt. El fallo RÁPIDO
+// (DNS muerto, conexión rechazada) no lleva mensaje estático a propósito: el
+// error le llega directo al modelo, que habla la disculpa y ejecuta
+// registrar_resultado — un request-failed aquí lo dejaría mudo (ver el tipo
+// VapiToolMessage). La frase de disculpa es la variante neutra de la del
+// prompt: los tool messages se leen VERBATIM por el TTS, así que no puede
+// llevar "Doctor(a)" ni variables {{...}}.
 
 export const FRASE_DISCULPA_TECNICA =
   'Le ofrezco una disculpa, estoy teniendo un detalle técnico con la agenda en este momento. Para no hacerle perder tiempo, le llamamos más tarde para confirmarle su cita. Gracias por su paciencia.';
 
 const mensajesFallaTecnica: readonly VapiToolMessage[] = [
-  { type: 'request-failed', content: 'Deme un momentito, por favor.' },
-  // Si el server sigue sin responder a los 10 s, Vapi dice la disculpa
-  // completa — cubre el caso de server colgado donde ni request-failed llega.
   { type: 'request-response-delayed', content: FRASE_DISCULPA_TECNICA, timingMilliseconds: 10_000 },
 ];
 

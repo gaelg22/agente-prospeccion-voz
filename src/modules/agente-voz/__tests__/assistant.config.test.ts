@@ -75,11 +75,10 @@ describe('assistantTools — estructura y server target', () => {
     expect(DESENLACES_LLAMADA).toHaveLength(7);
   });
 
-  it('las tools de agenda llevan request-failed y request-response-delayed (nunca silencio ante una falla)', () => {
+  it('las tools de agenda llevan SOLO request-response-delayed como mensaje', () => {
     for (const nombre of ['verificar_disponibilidad', 'agendar_cita']) {
       const tool = assistantTools.find((t) => t.function.name === nombre);
       expect(tool?.messages, nombre).toEqual([
-        { type: 'request-failed', content: 'Deme un momentito, por favor.' },
         {
           type: 'request-response-delayed',
           content: FRASE_DISCULPA_TECNICA,
@@ -88,6 +87,16 @@ describe('assistantTools — estructura y server target', () => {
       ]);
       // La frase de respaldo la lee el TTS verbatim: sin "Doctor(a)" ni {{...}}
       expect(FRASE_DISCULPA_TECNICA).not.toMatch(/\(|\)|\{\{/);
+    }
+  });
+
+  it('NINGUNA tool lleva request-failed (suprime el turno del modelo tras un fallo)', () => {
+    // Regresión 11 jul: con request-failed configurado, Vapi habla ese mensaje
+    // y NO vuelve a invocar al modelo ("exclusive OR" según la doc de Vapi) —
+    // la llamada muere en silence-timed-out sin disculpa ni registrar_resultado.
+    for (const tool of assistantTools) {
+      const tipos = (tool.messages ?? []).map((m) => m.type as string);
+      expect(tipos, tool.function.name).not.toContain('request-failed');
     }
   });
 
@@ -147,6 +156,13 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
   it('conserva las variables {{...}} de Vapi (esas las llena Vapi, no el backend)', () => {
     expect(systemPrompt).toContain('{{prospecto_nombre}}');
     expect(systemPrompt).toContain('{{now}}');
+  });
+
+  it('la regla de falla técnica prohíbe el silencio tras un error de herramienta', () => {
+    // Refuerzo del 11 jul: sin request-failed estático, el cierre hablado tras
+    // un fallo depende 100% de esta instrucción del prompt.
+    expect(systemPrompt).toContain('"No result returned"');
+    expect(systemPrompt).toContain('el silencio está prohibido');
   });
 });
 

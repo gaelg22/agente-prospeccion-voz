@@ -11,10 +11,6 @@
     "type": "function",
     "messages": [
       {
-        "type": "request-failed",
-        "content": "Deme un momentito, por favor."
-      },
-      {
         "type": "request-response-delayed",
         "content": "Le ofrezco una disculpa, estoy teniendo un detalle técnico con la agenda en este momento. Para no hacerle perder tiempo, le llamamos más tarde para confirmarle su cita. Gracias por su paciencia.",
         "timingMilliseconds": 10000
@@ -34,10 +30,6 @@
   {
     "type": "function",
     "messages": [
-      {
-        "type": "request-failed",
-        "content": "Deme un momentito, por favor."
-      },
       {
         "type": "request-response-delayed",
         "content": "Le ofrezco una disculpa, estoy teniendo un detalle técnico con la agenda en este momento. Para no hacerle perder tiempo, le llamamos más tarde para confirmarle su cita. Gracias por su paciencia.",
