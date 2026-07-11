@@ -26,6 +26,7 @@ import {
   systemPrompt,
   DESENLACES_LLAMADA,
   buildAssistant,
+  FRASE_DISCULPA_TECNICA,
 } from '../assistant.config';
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
@@ -74,12 +75,19 @@ describe('assistantTools — estructura y server target', () => {
     expect(DESENLACES_LLAMADA).toHaveLength(7);
   });
 
-  it('las tools de agenda llevan mensaje request-failed (nunca silencio ante una falla)', () => {
+  it('las tools de agenda llevan request-failed y request-response-delayed (nunca silencio ante una falla)', () => {
     for (const nombre of ['verificar_disponibilidad', 'agendar_cita']) {
       const tool = assistantTools.find((t) => t.function.name === nombre);
       expect(tool?.messages, nombre).toEqual([
         { type: 'request-failed', content: 'Deme un momentito, por favor.' },
+        {
+          type: 'request-response-delayed',
+          content: FRASE_DISCULPA_TECNICA,
+          timingMilliseconds: 10_000,
+        },
       ]);
+      // La frase de respaldo la lee el TTS verbatim: sin "Doctor(a)" ni {{...}}
+      expect(FRASE_DISCULPA_TECNICA).not.toMatch(/\(|\)|\{\{/);
     }
   });
 

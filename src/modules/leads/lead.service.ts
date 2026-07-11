@@ -114,4 +114,18 @@ export const LeadService = {
       .sort({ createdAt: 1 })
       .lean();
   },
+
+  /**
+   * Leads varados en status=llamado cuya ultimaLlamada es anterior a `antesDe`:
+   * la llamada ya debió terminar pero el webhook de fin de llamada nunca llegó
+   * (ej. túnel caído). Los recoge el job de reconciliación.
+   */
+  async findEstancadosEnLlamado(antesDe: Date): Promise<ILead[]> {
+    return Lead.find({
+      status: 'llamado',
+      ultimaLlamada: { $lte: antesDe },
+    })
+      .sort({ ultimaLlamada: 1 })
+      .lean();
+  },
 };

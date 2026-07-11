@@ -11,12 +11,17 @@ export interface VapiToolProperty {
 }
 
 // Mensaje que Vapi dice de viva voz durante el ciclo de una tool.
-// request-failed suena cuando el server no responde o regresa error — evita el
-// silencio incómodo mientras el modelo decide cómo seguir. Formato vigente
-// verificado en https://docs.vapi.ai/api-reference/tools/create (jul 2026).
+// - request-failed: suena cuando el server regresa error o el request falla —
+//   evita el silencio incómodo mientras el modelo decide cómo seguir.
+// - request-response-delayed: suena si el server no ha respondido después de
+//   timingMilliseconds — respaldo hablado para cuando el server está colgado.
+// Formato vigente verificado en https://docs.vapi.ai/api-reference/tools/create
+// (jul 2026); timingMilliseconds = "ms a esperar la respuesta del server antes
+// de decir este mensaje".
 export interface VapiToolMessage {
-  type: 'request-failed';
+  type: 'request-failed' | 'request-response-delayed';
   content: string;
+  timingMilliseconds?: number;
 }
 
 export interface VapiTool {
@@ -71,6 +76,24 @@ const webhookServer: VapiTool['server'] = {
   secret: config.VAPI_WEBHOOK_SECRET,
 };
 
+// ─── Mensajes de falla técnica de las tools de agenda ────────────────────────
+// Respaldo hablado de la REGLA DE FALLA TÉCNICA (sección 7 del prompt): si el
+// LLM se quedara callado tras un fallo (visto en la llamada de prueba del 10
+// jul), Vapi dice estas frases por sí mismo y el prospecto nunca escucha
+// silencio. La frase de disculpa es la variante neutra de la del prompt: los
+// tool messages se leen VERBATIM por el TTS, así que no puede llevar
+// "Doctor(a)" ni variables {{...}}.
+
+export const FRASE_DISCULPA_TECNICA =
+  'Le ofrezco una disculpa, estoy teniendo un detalle técnico con la agenda en este momento. Para no hacerle perder tiempo, le llamamos más tarde para confirmarle su cita. Gracias por su paciencia.';
+
+const mensajesFallaTecnica: readonly VapiToolMessage[] = [
+  { type: 'request-failed', content: 'Deme un momentito, por favor.' },
+  // Si el server sigue sin responder a los 10 s, Vapi dice la disculpa
+  // completa — cubre el caso de server colgado donde ni request-failed llega.
+  { type: 'request-response-delayed', content: FRASE_DISCULPA_TECNICA, timingMilliseconds: 10_000 },
+];
+
 // ─── Tools del asistente ──────────────────────────────────────────────────────
 // Especificación de referencia: docs/vapi_tools.json — nombres, descripciones,
 // parámetros y enums deben mantenerse idénticos a ese documento.
@@ -78,12 +101,7 @@ const webhookServer: VapiTool['server'] = {
 export const assistantTools: readonly VapiTool[] = [
   {
     type: 'function',
-    messages: [
-      {
-        type: 'request-failed',
-        content: 'Deme un momentito, por favor.',
-      },
-    ],
+    messages: mensajesFallaTecnica,
     function: {
       name: 'verificar_disponibilidad',
       description:
@@ -98,12 +116,7 @@ export const assistantTools: readonly VapiTool[] = [
   },
   {
     type: 'function',
-    messages: [
-      {
-        type: 'request-failed',
-        content: 'Deme un momentito, por favor.',
-      },
-    ],
+    messages: mensajesFallaTecnica,
     function: {
       name: 'agendar_cita',
       description:

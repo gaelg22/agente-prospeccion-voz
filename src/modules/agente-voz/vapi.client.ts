@@ -7,6 +7,22 @@ export interface VapiCallResponse {
   id: string;
   status: string;
   phoneNumber?: string;
+  endedReason?: string;
+  /** Historial de la llamada — GET /call/{id} lo incluye una vez terminada */
+  messages?: VapiCallMessage[];
+}
+
+// Forma mínima de los mensajes de GET /call/{id} que necesita la
+// reconciliación: solo interesan los tool calls que el LLM alcanzó a emitir.
+// `arguments` llega como objeto o como string JSON según el endpoint.
+export interface VapiCallMessage {
+  role?: string;
+  toolCalls?: Array<{
+    function?: {
+      name?: string;
+      arguments?: unknown;
+    };
+  }>;
 }
 
 // ─── Parámetros de una llamada saliente ───────────────────────────────────────
