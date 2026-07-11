@@ -15,6 +15,7 @@ const mockConfig = vi.hoisted(() => ({
   TELEFONO_OFICIAL: '55 1234 5678',
   VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
   VAPI_VOICE_ID: 'voz-de-prueba',
+  VAPI_VOICE_MODEL: 'eleven_flash_v2_5',
   VAPI_TRANSCRIBER_MODEL: 'nova-2',
   VAPI_TRANSCRIBER_LANGUAGE: 'es-419',
 }));
@@ -219,13 +220,18 @@ describe('buildAssistant — assistant transient completo', () => {
     expect(assistant.transcriber.language).toBe('es-419');
   });
 
-  it('configura la voz ElevenLabs multilingüe con el voiceId de config', () => {
+  it('configura la voz ElevenLabs con voiceId y modelo TTS desde config', () => {
     const assistant = buildAssistant();
     expect(assistant.voice).toEqual({
       provider: '11labs',
       voiceId: 'voz-de-prueba',
-      model: 'eleven_multilingual_v2',
+      model: 'eleven_flash_v2_5',
     });
+  });
+
+  it('apaga el backgroundSound (el ambiente de oficina default de Vapi mete ruido)', () => {
+    const assistant = buildAssistant();
+    expect(assistant.backgroundSound).toBe('off');
   });
 
   it('lleva firstMessage en español con la identidad y la variable del prospecto', () => {

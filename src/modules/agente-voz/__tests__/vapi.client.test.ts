@@ -10,6 +10,7 @@ vi.mock('../../../config', () => ({
     VAPI_PHONE_NUMBER_ID: 'phone-number-test-id',
     VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
     VAPI_VOICE_ID: 'voz-de-prueba',
+    VAPI_VOICE_MODEL: 'eleven_flash_v2_5',
     VAPI_TRANSCRIBER_MODEL: 'nova-2',
     VAPI_TRANSCRIBER_LANGUAGE: 'es-419',
     AGENTE_NOMBRE: 'Sofía',

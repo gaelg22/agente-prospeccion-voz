@@ -272,6 +272,9 @@ export interface VapiTransientAssistant {
     voiceId: string;
     model: string;
   };
+  // 'off' | 'office' | URL de audio. Sin declararlo, Vapi mete ambiente de
+  // oficina por default en llamadas telefónicas y se escucha como ruido.
+  backgroundSound: 'off';
   server: VapiTool['server'];
 }
 
@@ -296,13 +299,17 @@ export function buildAssistant(): VapiTransientAssistant {
       model: config.VAPI_TRANSCRIBER_MODEL,
       language: config.VAPI_TRANSCRIBER_LANGUAGE,
     },
-    // eleven_multilingual_v2 habla español con cualquier voz de ElevenLabs.
-    // Si la latencia de voz resulta alta, la alternativa es eleven_flash_v2_5.
+    // eleven_flash_v2_5 (default de config): mejor pronunciación de español y
+    // menor latencia que eleven_multilingual_v2, que recortaba "García" a
+    // "Garc". Intercambiable vía env VAPI_VOICE_MODEL sin tocar código.
     voice: {
       provider: '11labs',
       voiceId: config.VAPI_VOICE_ID,
-      model: 'eleven_multilingual_v2',
+      model: config.VAPI_VOICE_MODEL,
     },
+    // Sin esto Vapi agrega ambiente de oficina a la llamada ("mucho ruido"
+    // reportado en las pruebas del 11 jul).
+    backgroundSound: 'off',
     server: webhookServer,
   };
 }

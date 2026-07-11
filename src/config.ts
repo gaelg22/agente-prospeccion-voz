@@ -30,6 +30,10 @@ const envSchema = z.object({
   // librería de ElevenLabs/Vapi; con el modelo multilingüe habla español).
   // Intercambiable por cualquier voiceId de ElevenLabs sin tocar código.
   VAPI_VOICE_ID: z.string().min(1).default('sarah'),
+  // Modelo TTS de ElevenLabs. eleven_flash_v2_5 pronuncia mejor el español y
+  // tiene menor latencia que eleven_multilingual_v2 (que recortaba "García"
+  // a "Garc" en las llamadas de prueba del 11 jul).
+  VAPI_VOICE_MODEL: z.string().min(1).default('eleven_flash_v2_5'),
   // Transcriber Deepgram del asistente. es-419 (español latinoamericano) es el
   // enum preferido de Vapi para México — "es" a secas transcribe peor el acento.
   VAPI_TRANSCRIBER_MODEL: z.string().min(1).default('nova-2'),
