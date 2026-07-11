@@ -34,6 +34,15 @@ const envSchema = z.object({
   // tiene menor latencia que eleven_multilingual_v2 (que recortaba "García"
   // a "Garc" en las llamadas de prueba del 11 jul).
   VAPI_VOICE_MODEL: z.string().min(1).default('eleven_flash_v2_5'),
+  // Settings de la voz ElevenLabs (rango 0–1). Los defaults salen de la
+  // llamada de validación del 11 jul: voz estable pero con algo de expresión.
+  VAPI_VOICE_STABILITY: z.coerce.number().min(0).max(1).default(0.45),
+  VAPI_VOICE_SIMILARITY: z.coerce.number().min(0).max(1).default(0.75),
+  VAPI_VOICE_STYLE: z.coerce.number().min(0).max(1).default(0.3),
+  VAPI_VOICE_BOOST: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   // Transcriber Deepgram del asistente. es-419 (español latinoamericano) es el
   // enum preferido de Vapi para México — "es" a secas transcribe peor el acento.
   VAPI_TRANSCRIBER_MODEL: z.string().min(1).default('nova-2'),

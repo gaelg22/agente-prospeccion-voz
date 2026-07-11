@@ -271,6 +271,10 @@ export interface VapiTransientAssistant {
     provider: '11labs';
     voiceId: string;
     model: string;
+    stability: number;
+    similarityBoost: number;
+    style: number;
+    useSpeakerBoost: boolean;
   };
   // 'off' | 'office' | URL de audio. Sin declararlo, Vapi mete ambiente de
   // oficina por default en llamadas telefónicas y se escucha como ruido.
@@ -301,11 +305,16 @@ export function buildAssistant(): VapiTransientAssistant {
     },
     // eleven_flash_v2_5 (default de config): mejor pronunciación de español y
     // menor latencia que eleven_multilingual_v2, que recortaba "García" a
-    // "Garc". Intercambiable vía env VAPI_VOICE_MODEL sin tocar código.
+    // "Garc". Intercambiable vía env VAPI_VOICE_MODEL sin tocar código, igual
+    // que los cuatro settings de ElevenLabs (estabilidad/expresión de la voz).
     voice: {
       provider: '11labs',
       voiceId: config.VAPI_VOICE_ID,
       model: config.VAPI_VOICE_MODEL,
+      stability: config.VAPI_VOICE_STABILITY,
+      similarityBoost: config.VAPI_VOICE_SIMILARITY,
+      style: config.VAPI_VOICE_STYLE,
+      useSpeakerBoost: config.VAPI_VOICE_BOOST,
     },
     // Sin esto Vapi agrega ambiente de oficina a la llamada ("mucho ruido"
     // reportado en las pruebas del 11 jul).

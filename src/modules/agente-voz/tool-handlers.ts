@@ -1,5 +1,6 @@
 import { logger } from '../../lib/logger';
 import { LeadService } from '../leads/lead.service';
+import { isTerminal } from '../leads/lead.transitions';
 import { ColaService } from '../cola/cola.service';
 import { mapearDesenlace } from './call-outcome.handler';
 import {
@@ -42,6 +43,25 @@ export const handleRegistrarResultado: ToolHandler = async (toolCall, ctx) => {
   if (!lead) {
     logger.warn({ leadId }, 'registrar_resultado: lead no encontrado');
     return { toolCallId: toolCall.id, result: JSON.stringify({ ok: false, error: 'Lead no encontrado' }) };
+  }
+
+  // Idempotencia: si el lead ya quedó cerrado en un estado terminal (p. ej.
+  // marcar_no_contactar corrió antes en la misma llamada), registrar_resultado
+  // no debe fallar con transición ilegal — el cierre ya está hecho.
+  if (isTerminal(lead.status)) {
+    logger.info(
+      { leadId, desenlace, status: lead.status },
+      'registrar_resultado: lead ya en estado terminal — sin transición',
+    );
+    return {
+      toolCallId: toolCall.id,
+      result: JSON.stringify({
+        ok: true,
+        nuevoStatus: lead.status,
+        nota: `lead ya cerrado como ${lead.status}`,
+        debeReintentar: false,
+      }),
+    };
   }
 
   const outcome = mapearDesenlace(desenlace, lead.intentos);

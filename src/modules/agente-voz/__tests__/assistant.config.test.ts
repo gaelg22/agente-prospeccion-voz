@@ -16,6 +16,10 @@ const mockConfig = vi.hoisted(() => ({
   VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
   VAPI_VOICE_ID: 'voz-de-prueba',
   VAPI_VOICE_MODEL: 'eleven_flash_v2_5',
+  VAPI_VOICE_STABILITY: 0.45,
+  VAPI_VOICE_SIMILARITY: 0.75,
+  VAPI_VOICE_STYLE: 0.3,
+  VAPI_VOICE_BOOST: true,
   VAPI_TRANSCRIBER_MODEL: 'nova-2',
   VAPI_TRANSCRIBER_LANGUAGE: 'es-419',
 }));
@@ -165,6 +169,24 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(systemPrompt).toContain('"No result returned"');
     expect(systemPrompt).toContain('el silencio está prohibido');
   });
+
+  it('la sección 4 prohíbe los rellenos de espera como regla global de toda la llamada', () => {
+    // Llamada de validación del 11 jul: el agente dijo "espere un momento"
+    // a media llamada — la prohibición vivía solo en el cierre (sección 11).
+    const seccion4 = systemPrompt.split('## 5.')[0] ?? '';
+    expect(seccion4).toContain('PROHIBIDO en cualquier momento de la llamada');
+    expect(seccion4).toContain('"espera un segundo"');
+    expect(seccion4).toContain('"espere un momento"');
+    expect(seccion4).toContain('"un momentito"');
+    expect(seccion4).toContain('las herramientas se ejecutan en silencio siempre');
+  });
+
+  it('la objeción de rechazo exige la despedida cortés ANTES de las herramientas', () => {
+    expect(systemPrompt).toContain(
+      'Entiendo perfectamente, lo retiro de nuestra lista. Una disculpa por la molestia y buen día.',
+    );
+    expect(systemPrompt).toContain('la despedida cortés es OBLIGATORIA antes de las herramientas');
+  });
 });
 
 // ─── Assistant transient ──────────────────────────────────────────────────────
@@ -220,12 +242,16 @@ describe('buildAssistant — assistant transient completo', () => {
     expect(assistant.transcriber.language).toBe('es-419');
   });
 
-  it('configura la voz ElevenLabs con voiceId y modelo TTS desde config', () => {
+  it('configura la voz ElevenLabs con voiceId, modelo TTS y settings desde config', () => {
     const assistant = buildAssistant();
     expect(assistant.voice).toEqual({
       provider: '11labs',
       voiceId: 'voz-de-prueba',
       model: 'eleven_flash_v2_5',
+      stability: 0.45,
+      similarityBoost: 0.75,
+      style: 0.3,
+      useSpeakerBoost: true,
     });
   });
 
