@@ -187,6 +187,21 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     );
     expect(systemPrompt).toContain('la despedida cortés es OBLIGATORIA antes de las herramientas');
   });
+
+  it('el cierre exige la despedida como turno hablado puro, sin herramientas en el mismo turno', () => {
+    // Llamada 019f53ac (11 jul): con la regla de "despedida antes de las
+    // herramientas" el modelo aún dijo "Solo un segundo" y disparó
+    // marcar_no_contactar + registrar_resultado + endCall en el MISMO turno;
+    // la despedida salió después del endCall y se escuchó cortada ("A 10.").
+    expect(systemPrompt).toContain('TURNO HABLADO PURO');
+    expect(systemPrompt).toContain('PROHIBIDO mezclar despedida y herramientas en el mismo turno');
+    expect(systemPrompt).toContain('Después de invocar `endCall` no generes más texto');
+  });
+
+  it('la sección 4 también prohíbe el relleno "solo un segundo"', () => {
+    const seccion4 = systemPrompt.split('## 5.')[0] ?? '';
+    expect(seccion4).toContain('"solo un segundo"');
+  });
 });
 
 // ─── Assistant transient ──────────────────────────────────────────────────────
