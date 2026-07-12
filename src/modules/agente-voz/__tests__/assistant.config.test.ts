@@ -171,15 +171,15 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(systemPrompt).toContain('el silencio está prohibido');
   });
 
-  it('la sección 4 prohíbe los rellenos de espera como regla global de toda la llamada', () => {
-    // Llamada de validación del 11 jul: el agente dijo "espere un momento"
-    // a media llamada — la prohibición vivía solo en el cierre (sección 11).
+  it('la sección 4 prohíbe los rellenos de espera POR CLASE, no por frases exactas', () => {
+    // Llamada 019f57c6 (12 jul): el modelo esquivó la lista de frases exactas
+    // parafraseando ("Esto solo tomará un segundo"). La prohibición ahora es
+    // por clase — cualquier anuncio de espera/demora en cualquier paráfrasis.
     const seccion4 = systemPrompt.split('## 5.')[0] ?? '';
-    expect(seccion4).toContain('PROHIBIDO en cualquier momento de la llamada');
-    expect(seccion4).toContain('"espera un segundo"');
-    expect(seccion4).toContain('"espere un momento"');
-    expect(seccion4).toContain('"un momentito"');
-    expect(seccion4).toContain('las herramientas se ejecutan en silencio siempre');
+    expect(seccion4).toContain('PROHIBIDO cualquier anuncio de espera o demora');
+    expect(seccion4).toContain('La prohibición es por CLASE, no por frases exactas');
+    expect(seccion4).toContain('paráfrasis');
+    expect(seccion4).toContain('Las herramientas se ejecutan en silencio siempre');
   });
 
   it('la objeción de rechazo dice solo la línea contextual, sin la despedida final del modelo', () => {
@@ -203,9 +203,12 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(systemPrompt).not.toContain('PROHIBIDO mezclar despedida y herramientas en el mismo turno');
   });
 
-  it('la sección 4 también prohíbe el relleno "solo un segundo"', () => {
-    const seccion4 = systemPrompt.split('## 5.')[0] ?? '';
-    expect(seccion4).toContain('"solo un segundo"');
+  it('el cierre exige SOLO la línea contextual y cero texto de transición hacia las tools', () => {
+    // Causa raíz de 019f57c6 (12 jul): el modelo coló un relleno ("Esto solo
+    // tomará un segundo") en el mismo turno que endCall, antes de la despedida
+    // mecánica. La regla ataca la clase: solo la línea del desenlace, nada más.
+    expect(systemPrompt).toContain('cero texto de transición hacia las herramientas');
+    expect(systemPrompt).toContain('El turno de `endCall` no lleva texto propio del modelo');
   });
 });
 
