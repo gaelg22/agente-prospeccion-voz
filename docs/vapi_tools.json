@@ -64,7 +64,7 @@
     "type": "function",
     "function": {
       "name": "registrar_resultado",
-      "description": "Registra el desenlace final de la llamada. OBLIGATORIO llamarla al final de toda llamada, sin excepción, DESPUÉS de decir la despedida completa y justo antes de colgar con endCall. Se ejecuta en silencio: nunca anuncies que la vas a usar ni pidas esperar.",
+      "description": "Registra el desenlace final de la llamada. OBLIGATORIO llamarla al final de toda llamada, sin excepción, DESPUÉS de decir tu línea contextual de cierre y justo antes de colgar con endCall (la despedida final la dice el sistema al colgar). Se ejecuta en silencio: nunca anuncies que la vas a usar ni pidas esperar.",
       "parameters": {
         "type": "object",
         "properties": {

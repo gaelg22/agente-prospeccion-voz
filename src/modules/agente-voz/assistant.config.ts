@@ -50,13 +50,38 @@ export interface VapiTool {
 }
 
 // Tool nativa de Vapi: permite al asistente colgar la llamada. Sin ella, tras
-// la despedida el asistente se queda mudo en la línea hasta que cuelga el
+// el cierre el asistente se queda mudo en la línea hasta que cuelga el
 // prospecto. (Reemplaza al booleano legado endCallFunctionEnabled.)
-export interface VapiEndCallTool {
-  type: 'endCall';
+//
+// El request-start con blocking: true es la garantía MECÁNICA de la despedida:
+// Vapi habla el mensaje COMPLETO antes de ejecutar el colgado ("the tool call
+// will only trigger after the message is spoken" — ToolMessageStart.blocking,
+// spec en api.vapi.ai/api-json, jul 2026). Por prompt no se pudo garantizar:
+// en las llamadas 019f53ac y 019f53c3 (11 jul) el modelo mezcló texto y tools
+// en un mismo turno y la despedida generada tras endCall perdió la carrera
+// contra el colgado (se escuchó cortada o no se escuchó).
+export interface VapiEndCallToolMessage {
+  type: 'request-start';
+  content: string;
+  blocking: true;
 }
 
-export const endCallTool: VapiEndCallTool = { type: 'endCall' };
+export interface VapiEndCallTool {
+  type: 'endCall';
+  messages: readonly [VapiEndCallToolMessage];
+}
+
+// El TTS lo lee VERBATIM al colgar — sin variables {{...}} ni "Doctor(a)".
+export const FRASE_DESPEDIDA_ENDCALL: VapiEndCallToolMessage = {
+  type: 'request-start',
+  content: 'Gracias por su tiempo. Que tenga excelente día.',
+  blocking: true,
+};
+
+export const endCallTool: VapiEndCallTool = {
+  type: 'endCall',
+  messages: [FRASE_DESPEDIDA_ENDCALL],
+};
 
 // ─── Desenlaces de llamada ────────────────────────────────────────────────────
 // Alineados a la máquina de estados del backend + casos operativos de llamada
@@ -157,7 +182,7 @@ export const assistantTools: readonly VapiTool[] = [
     function: {
       name: 'registrar_resultado',
       description:
-        'Registra el desenlace final de la llamada. OBLIGATORIO llamarla al final de toda llamada, sin excepción, DESPUÉS de decir la despedida completa y justo antes de colgar con endCall. Se ejecuta en silencio: nunca anuncies que la vas a usar ni pidas esperar.',
+        'Registra el desenlace final de la llamada. OBLIGATORIO llamarla al final de toda llamada, sin excepción, DESPUÉS de decir tu línea contextual de cierre y justo antes de colgar con endCall (la despedida final la dice el sistema al colgar). Se ejecuta en silencio: nunca anuncies que la vas a usar ni pidas esperar.',
       parameters: {
         type: 'object',
         properties: {

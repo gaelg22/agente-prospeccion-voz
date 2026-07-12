@@ -32,6 +32,7 @@ import {
   DESENLACES_LLAMADA,
   buildAssistant,
   FRASE_DISCULPA_TECNICA,
+  FRASE_DESPEDIDA_ENDCALL,
 } from '../assistant.config';
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
@@ -181,21 +182,25 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(seccion4).toContain('las herramientas se ejecutan en silencio siempre');
   });
 
-  it('la objeción de rechazo exige la despedida cortés ANTES de las herramientas', () => {
+  it('la objeción de rechazo dice solo la línea contextual, sin la despedida final del modelo', () => {
+    // La despedida final la garantiza mecánicamente el mensaje bloqueante de
+    // endCall (ver test de endCallTool), así que el modelo NO la repite.
     expect(systemPrompt).toContain(
-      'Entiendo perfectamente, lo retiro de nuestra lista. Una disculpa por la molestia y buen día.',
+      'Entiendo perfectamente, lo retiro de nuestra lista. Una disculpa por la molestia.',
     );
-    expect(systemPrompt).toContain('la despedida cortés es OBLIGATORIA antes de las herramientas');
+    // Ya no exige "despedida cortés antes de las herramientas" (esquema viejo).
+    expect(systemPrompt).not.toContain('la despedida cortés es OBLIGATORIA antes de las herramientas');
   });
 
-  it('el cierre exige la despedida como turno hablado puro, sin herramientas en el mismo turno', () => {
-    // Llamada 019f53ac (11 jul): con la regla de "despedida antes de las
-    // herramientas" el modelo aún dijo "Solo un segundo" y disparó
-    // marcar_no_contactar + registrar_resultado + endCall en el MISMO turno;
-    // la despedida salió después del endCall y se escuchó cortada ("A 10.").
-    expect(systemPrompt).toContain('TURNO HABLADO PURO');
-    expect(systemPrompt).toContain('PROHIBIDO mezclar despedida y herramientas en el mismo turno');
-    expect(systemPrompt).toContain('Después de invocar `endCall` no generes más texto');
+  it('el cierre delega la despedida final al sistema y ya no exige turno de despedida del modelo', () => {
+    // Estrategia mecánica (12 jul): tras dos fallos del enfoque por prompt
+    // (llamadas 019f53ac y 019f53c3, texto tras endCall que perdió la carrera
+    // contra el colgado), la despedida la habla Vapi vía el request-start
+    // bloqueante de endCall. El modelo ya no debe decir la despedida final.
+    expect(systemPrompt).toContain('La despedida final la dice el SISTEMA, no tú');
+    // Restos del esquema de "turno de despedida" eliminados para no confundir.
+    expect(systemPrompt).not.toContain('TURNO HABLADO PURO');
+    expect(systemPrompt).not.toContain('PROHIBIDO mezclar despedida y herramientas en el mismo turno');
   });
 
   it('la sección 4 también prohíbe el relleno "solo un segundo"', () => {
@@ -226,11 +231,25 @@ describe('buildAssistant — assistant transient completo', () => {
     ]);
   });
 
-  it('incluye la tool endCall para que el asistente pueda colgar', () => {
+  it('incluye la tool endCall con el mensaje de despedida bloqueante para colgar', () => {
     const assistant = buildAssistant();
-    expect(assistant.model.tools).toContainEqual({ type: 'endCall' });
+    const endCall = { type: 'endCall', messages: [FRASE_DESPEDIDA_ENDCALL] };
+    expect(assistant.model.tools).toContainEqual(endCall);
     // endCall va al final, después de las tools funcionales
-    expect(assistant.model.tools.at(-1)).toEqual({ type: 'endCall' });
+    expect(assistant.model.tools.at(-1)).toEqual(endCall);
+  });
+
+  it('el mensaje de endCall es request-start bloqueante: Vapi lo habla COMPLETO antes de colgar', () => {
+    // Garantía mecánica (12 jul): con blocking:true el colgado solo se dispara
+    // tras hablar la frase ("the tool call will only trigger after the message
+    // is spoken", ToolMessageStart.blocking en api.vapi.ai/api-json). Es lo que
+    // el enfoque por prompt no logró: en 019f53ac/019f53c3 el texto tras endCall
+    // perdió la carrera contra el colgado y se escuchó cortado.
+    expect(FRASE_DESPEDIDA_ENDCALL).toEqual({
+      type: 'request-start',
+      content: 'Gracias por su tiempo. Que tenga excelente día.',
+      blocking: true,
+    });
   });
 
   it('usa provider anthropic con el modelo de config', () => {
