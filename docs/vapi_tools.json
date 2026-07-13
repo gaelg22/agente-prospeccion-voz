@@ -10,6 +10,7 @@
   {
     "type": "function",
     "messages": [
+      { "type": "request-start", "content": "", "blocking": false },
       {
         "type": "request-response-delayed",
         "content": "Le ofrezco una disculpa, estoy teniendo un detalle técnico con la agenda en este momento. Para no hacerle perder tiempo, le llamamos más tarde para confirmarle su cita. Gracias por su paciencia.",
@@ -30,6 +31,7 @@
   {
     "type": "function",
     "messages": [
+      { "type": "request-start", "content": "", "blocking": false },
       {
         "type": "request-response-delayed",
         "content": "Le ofrezco una disculpa, estoy teniendo un detalle técnico con la agenda en este momento. Para no hacerle perder tiempo, le llamamos más tarde para confirmarle su cita. Gracias por su paciencia.",
@@ -62,6 +64,9 @@
   },
   {
     "type": "function",
+    "messages": [
+      { "type": "request-start", "content": "", "blocking": false }
+    ],
     "function": {
       "name": "registrar_resultado",
       "description": "Registra el desenlace final de la llamada. OBLIGATORIO llamarla al final de toda llamada, sin excepción, DESPUÉS de decir tu línea contextual de cierre y justo antes de colgar con endCall (la despedida final la dice el sistema al colgar). Se ejecuta en silencio: nunca anuncies que la vas a usar ni pidas esperar.",
@@ -85,6 +90,9 @@
   },
   {
     "type": "function",
+    "messages": [
+      { "type": "request-start", "content": "Con gusto lo retiro de nuestra lista, una disculpa por la molestia.", "blocking": true }
+    ],
     "function": {
       "name": "marcar_no_contactar",
       "description": "Marca al prospecto como NO CONTACTAR de forma permanente. Llamar en el instante en que la persona pida no recibir más llamadas, ser borrada de la lista, o exprese molestia por el contacto. Es irreversible desde la llamada.",

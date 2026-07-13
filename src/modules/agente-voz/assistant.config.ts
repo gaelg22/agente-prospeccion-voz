@@ -31,9 +31,26 @@ export interface VapiToolMessage {
   timingMilliseconds?: number;
 }
 
+// request-start: Vapi lo habla al ARRANCAR la tool, ANTES de ejecutarla. En las
+// tools de CIERRE cumple dos funciones según su content:
+//  - content real + blocking:true → MECANIZA la línea contextual: la pronuncia
+//    Vapi verbatim (no el modelo), misma garantía determinista que la despedida
+//    de endCall. El colgado/ejecución solo ocurre tras hablarla completa.
+//  - content vacío → SUPRIME el filler por defecto que Vapi inyecta cuando una
+//    tool no trae messages. Ese default es uno de "Hold on a sec"/"One moment"/
+//    "Give me a moment"/"Just a sec"/"This'll just take a sec" (spec de
+//    ToolMessageStart) — que la voz en español pronunció como "Dame un momento"
+//    en la llamada 019f5c92 (13 jul), justo porque marcar_no_contactar y
+//    registrar_resultado no llevaban messages. Ref: https://docs.vapi.ai/api-reference/tools/create
+export interface VapiToolStartMessage {
+  type: 'request-start';
+  content: string;
+  blocking: boolean;
+}
+
 export interface VapiTool {
   type: 'function';
-  messages?: readonly VapiToolMessage[];
+  messages?: readonly (VapiToolMessage | VapiToolStartMessage)[];
   function: {
     name: string;
     description: string;
@@ -108,24 +125,62 @@ const webhookServer: VapiTool['server'] = {
   secret: config.VAPI_WEBHOOK_SECRET,
 };
 
-// ─── Mensajes de falla técnica de las tools de agenda ────────────────────────
-// Único respaldo hablado: request-response-delayed. Si el server no responde
-// en 10 s (colgado), Vapi dice la disculpa completa y el prospecto nunca
-// escucha silencio; cuando el request por fin resuelve o falla, el resultado
-// llega al modelo y él cierra según la sección 7 del prompt. El fallo RÁPIDO
-// (DNS muerto, conexión rechazada) no lleva mensaje estático a propósito: el
-// error le llega directo al modelo, que habla la disculpa y ejecuta
-// registrar_resultado — un request-failed aquí lo dejaría mudo (ver el tipo
-// VapiToolMessage). La frase de disculpa es la variante neutra de la del
-// prompt: los tool messages se leen VERBATIM por el TTS, así que no puede
-// llevar "Doctor(a)" ni variables {{...}}.
+// ─── Mensajes de las tools de agenda ─────────────────────────────────────────
+// Dos mensajes, sin encimar la voz del modelo (que dice su oferta de horarios y
+// su confirmación con folio DESPUÉS del resultado de la tool):
+//
+// 1) request-start VACÍO (MENSAJE_INICIO_SILENCIOSO): tapa el filler por defecto
+//    que Vapi inyecta al ARRANCAR una tool sin request-start — uno de "Hold on a
+//    sec"/"One moment"/"Give me a moment"/"Just a sec"/"This'll just take a sec"
+//    (spec ToolMessageStart), que la voz en español dijo como "Espera un segundo"/
+//    "Solo un segundo" antes de verificar_disponibilidad y agendar_cita (artifact
+//    019f5cbf, 13 jul). Confirmado filler default: NO es el request-response-delayed
+//    (esa es la disculpa larga a los 10 s) ni texto del modelo (sobrevivió a la
+//    prohibición por clase del prompt, que sí silenció el cierre de la llamada DNC).
+//
+// 2) request-response-delayed: único respaldo hablado si el server no responde en
+//    10 s (colgado); el prospecto nunca escucha silencio y, cuando el request
+//    resuelve o falla, el resultado llega al modelo y él cierra según la sección 7
+//    del prompt. El fallo RÁPIDO (DNS muerto, conexión rechazada) NO lleva mensaje
+//    estático a propósito: el error le llega directo al modelo, que habla la
+//    disculpa y ejecuta registrar_resultado — un request-failed aquí lo dejaría
+//    mudo (ver el tipo VapiToolMessage). La disculpa se lee VERBATIM por el TTS,
+//    así que no puede llevar "Doctor(a)" ni variables {{...}}.
 
 export const FRASE_DISCULPA_TECNICA =
   'Le ofrezco una disculpa, estoy teniendo un detalle técnico con la agenda en este momento. Para no hacerle perder tiempo, le llamamos más tarde para confirmarle su cita. Gracias por su paciencia.';
 
-const mensajesFallaTecnica: readonly VapiToolMessage[] = [
+// request-start VACÍO reutilizable: no habla (content ''), solo ocupa el hueco de
+// messages para suprimir el filler por defecto de Vapi. blocking:false porque no
+// hay nada que hablar. Lo usan las tools cuya línea real la dice el modelo DESPUÉS
+// del resultado: verificar_disponibilidad y agendar_cita (antes de la oferta y la
+// confirmación dinámicas) y registrar_resultado (en el cierre, incluido el
+// AGENDADO EXITOSO, sin pisar la línea con folio y fecha reales del modelo).
+export const MENSAJE_INICIO_SILENCIOSO: VapiToolStartMessage = {
+  type: 'request-start',
+  content: '',
+  blocking: false,
+};
+
+const mensajesAgenda: readonly (VapiToolStartMessage | VapiToolMessage)[] = [
+  MENSAJE_INICIO_SILENCIOSO,
   { type: 'request-response-delayed', content: FRASE_DISCULPA_TECNICA, timingMilliseconds: 10_000 },
 ];
+
+// ─── Mensajes de cierre mecánicos (request-start) ─────────────────────────────
+// Reproducen el patrón de la despedida de endCall en las tools de cierre SIN
+// datos dinámicos, para que el audio del cierre no dependa de que el modelo
+// redacte la frase en vivo (falló en 019f5c92: el modelo omitió la línea de
+// retiro y Vapi coló su filler por defecto "Dame un momento").
+//
+// marcar_no_contactar → línea de RETIRO, hablada por Vapi (blocking) al arrancar
+// la tool. El modelo YA NO la dice (el prompt se lo prohíbe para no encimarla):
+// solo la dice el sistema aquí. El TTS la lee verbatim: sin "Doctor(a)" ni {{...}}.
+export const FRASE_RETIRO_NO_CONTACTAR: VapiToolStartMessage = {
+  type: 'request-start',
+  content: 'Con gusto lo retiro de nuestra lista, una disculpa por la molestia.',
+  blocking: true,
+};
 
 // ─── Tools del asistente ──────────────────────────────────────────────────────
 // Especificación de referencia: docs/vapi_tools.json — nombres, descripciones,
@@ -134,7 +189,7 @@ const mensajesFallaTecnica: readonly VapiToolMessage[] = [
 export const assistantTools: readonly VapiTool[] = [
   {
     type: 'function',
-    messages: mensajesFallaTecnica,
+    messages: mensajesAgenda,
     function: {
       name: 'verificar_disponibilidad',
       description:
@@ -149,7 +204,7 @@ export const assistantTools: readonly VapiTool[] = [
   },
   {
     type: 'function',
-    messages: mensajesFallaTecnica,
+    messages: mensajesAgenda,
     function: {
       name: 'agendar_cita',
       description:
@@ -179,6 +234,7 @@ export const assistantTools: readonly VapiTool[] = [
   },
   {
     type: 'function',
+    messages: [MENSAJE_INICIO_SILENCIOSO],
     function: {
       name: 'registrar_resultado',
       description:
@@ -205,6 +261,7 @@ export const assistantTools: readonly VapiTool[] = [
   },
   {
     type: 'function',
+    messages: [FRASE_RETIRO_NO_CONTACTAR],
     function: {
       name: 'marcar_no_contactar',
       description:

@@ -33,6 +33,8 @@ import {
   buildAssistant,
   FRASE_DISCULPA_TECNICA,
   FRASE_DESPEDIDA_ENDCALL,
+  FRASE_RETIRO_NO_CONTACTAR,
+  MENSAJE_INICIO_SILENCIOSO,
 } from '../assistant.config';
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
@@ -81,19 +83,66 @@ describe('assistantTools — estructura y server target', () => {
     expect(DESENLACES_LLAMADA).toHaveLength(7);
   });
 
-  it('las tools de agenda llevan SOLO request-response-delayed como mensaje', () => {
+  it('las tools de agenda llevan request-start VACÍO + request-response-delayed', () => {
+    // El request-start vacío tapa el filler default de Vapi ("Espera un segundo"/
+    // "Solo un segundo" en 019f5cbf) al arrancar la tool; el request-response-delayed
+    // es el respaldo hablado si el server no responde en 10 s. La oferta/confirmación
+    // dinámica la dice el modelo DESPUÉS del resultado, así que el vacío no la pisa.
     for (const nombre of ['verificar_disponibilidad', 'agendar_cita']) {
       const tool = assistantTools.find((t) => t.function.name === nombre);
       expect(tool?.messages, nombre).toEqual([
+        { type: 'request-start', content: '', blocking: false },
         {
           type: 'request-response-delayed',
           content: FRASE_DISCULPA_TECNICA,
           timingMilliseconds: 10_000,
         },
       ]);
+      // El request-start es VACÍO: no habla nada (si hablara, pisaría la línea del modelo)
+      const start = tool?.messages?.find((m) => m.type === 'request-start');
+      expect(start?.content, nombre).toBe('');
       // La frase de respaldo la lee el TTS verbatim: sin "Doctor(a)" ni {{...}}
       expect(FRASE_DISCULPA_TECNICA).not.toMatch(/\(|\)|\{\{/);
     }
+  });
+
+  it('marcar_no_contactar mecaniza la línea de retiro con un request-start bloqueante', () => {
+    // 019f5c92 (13 jul): el cierre de DNC no puede depender de que el modelo
+    // redacte la línea de retiro (la omitió y Vapi coló su filler). Ahora la
+    // habla Vapi al arrancar la tool, verbatim y blocking.
+    const marcar = assistantTools.find((t) => t.function.name === 'marcar_no_contactar');
+    expect(marcar?.messages).toEqual([
+      {
+        type: 'request-start',
+        content: 'Con gusto lo retiro de nuestra lista, una disculpa por la molestia.',
+        blocking: true,
+      },
+    ]);
+    expect(marcar?.messages?.[0]).toEqual(FRASE_RETIRO_NO_CONTACTAR);
+    // La lee el TTS verbatim: sin "Doctor(a)" ni variables {{...}}
+    expect(FRASE_RETIRO_NO_CONTACTAR.content).not.toMatch(/\(|\)|\{\{/);
+  });
+
+  it('registrar_resultado lleva un request-start VACÍO que tapa el filler default sin hablar', () => {
+    // Se llama en TODO cierre, incluido el AGENDADO EXITOSO donde el modelo dice
+    // su línea con folio y fecha reales: por eso el mensaje es VACÍO (no encima
+    // audio) y solo existe para que Vapi no inyecte su "Dame un momento".
+    const registrar = assistantTools.find((t) => t.function.name === 'registrar_resultado');
+    expect(registrar?.messages).toEqual([{ type: 'request-start', content: '', blocking: false }]);
+    expect(registrar?.messages?.[0]).toEqual(MENSAJE_INICIO_SILENCIOSO);
+    expect(MENSAJE_INICIO_SILENCIOSO.content).toBe('');
+  });
+
+  it('agendar_cita solo lleva request-start VACÍO — su confirmación con folio la dice el modelo', () => {
+    // Camino feliz intacto: una frase mecánica aquí pisaría la confirmación
+    // dinámica de la cita ("queda su cita el… le llega por WhatsApp"). El único
+    // request-start es VACÍO (tapa el filler default), no una línea hablada.
+    const agendar = assistantTools.find((t) => t.function.name === 'agendar_cita');
+    for (const m of agendar?.messages ?? []) {
+      if (m.type === 'request-start') expect(m.content).toBe('');
+    }
+    // Conserva el respaldo técnico request-response-delayed.
+    expect(agendar?.messages?.some((m) => m.type === 'request-response-delayed')).toBe(true);
   });
 
   it('NINGUNA tool lleva request-failed (suprime el turno del modelo tras un fallo)', () => {
@@ -182,11 +231,14 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(seccion4).toContain('Las herramientas se ejecutan en silencio siempre');
   });
 
-  it('la objeción de rechazo dice solo la línea contextual, sin la despedida final del modelo', () => {
-    // La despedida final la garantiza mecánicamente el mensaje bloqueante de
-    // endCall (ver test de endCallTool), así que el modelo NO la repite.
-    expect(systemPrompt).toContain(
-      'Entiendo perfectamente, lo retiro de nuestra lista. Una disculpa por la molestia.',
+  it('la objeción de rechazo delega la línea de retiro al sistema (el modelo no la repite)', () => {
+    // 019f5c92 (13 jul): con marcar_no_contactar mecanizado, la línea de retiro
+    // la habla Vapi al arrancar la tool; el modelo NO debe decirla o se encima.
+    expect(systemPrompt).toContain('el sistema dice la línea de retiro');
+    expect(systemPrompt).toContain('TÚ no la digas');
+    // El modelo ya no pone la línea de retiro COMPLETA en su boca (esquema viejo).
+    expect(systemPrompt).not.toContain(
+      'di tu línea contextual breve, de viva voz: "Entiendo perfectamente, lo retiro de nuestra lista.',
     );
     // Ya no exige "despedida cortés antes de las herramientas" (esquema viejo).
     expect(systemPrompt).not.toContain('la despedida cortés es OBLIGATORIA antes de las herramientas');
