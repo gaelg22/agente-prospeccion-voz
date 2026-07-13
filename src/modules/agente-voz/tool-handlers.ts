@@ -1,4 +1,5 @@
 import { logger } from '../../lib/logger';
+import { fechaMexicoISO } from '../../lib/fecha-mexico';
 import { LeadService } from '../leads/lead.service';
 import { isTerminal } from '../leads/lead.transitions';
 import { ColaService } from '../cola/cola.service';
@@ -122,13 +123,11 @@ export const handleMarcarNoContactar: ToolHandler = async (toolCall, ctx) => {
 export const handleVerificarDisponibilidad: ToolHandler = async (toolCall) => {
   logger.info('Tool: verificar_disponibilidad [STUB]');
 
-  // Stub: devuelve dos días con ventanas hardcodeadas hasta integrar Calendar
-  const hoy = new Date();
-  const dia = (offset: number): string => {
-    const d = new Date(hoy);
-    d.setDate(d.getDate() + offset);
-    return d.toISOString().slice(0, 10);
-  };
+  // Stub: devuelve dos días con ventanas hardcodeadas hasta integrar Calendar.
+  // Las fechas se calculan en zona de México (NO en UTC del server): en la noche
+  // de México toISOString() daría el día siguiente y ofreceríamos días corridos.
+  const ahora = new Date();
+  const dia = (offset: number): string => fechaMexicoISO(ahora, offset);
 
   return {
     toolCallId: toolCall.id,

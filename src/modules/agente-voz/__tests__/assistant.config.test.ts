@@ -208,9 +208,12 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(systemPrompt).not.toContain('Pega el bloque');
   });
 
-  it('conserva las variables {{...}} de Vapi (esas las llena Vapi, no el backend)', () => {
+  it('conserva las variables {{...}} que llena Vapi con variableValues del backend', () => {
     expect(systemPrompt).toContain('{{prospecto_nombre}}');
-    expect(systemPrompt).toContain('{{now}}');
+    // La fecha ya NO es el {{now}} de Vapi (llegaba en UTC): la inyecta el
+    // backend en zona de México vía variableValues.fecha_hora_actual.
+    expect(systemPrompt).toContain('{{fecha_hora_actual}}');
+    expect(systemPrompt).not.toContain('{{now}}');
   });
 
   it('la regla de falla técnica prohíbe el silencio tras un error de herramienta', () => {

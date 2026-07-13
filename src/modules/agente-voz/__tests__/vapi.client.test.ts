@@ -51,13 +51,16 @@ describe('buildOutboundCallPayload — payload exacto para POST /call', () => {
     ]);
   });
 
-  it('manda variableValues con los datos del lead', () => {
+  it('manda variableValues con los datos del lead y la fecha de México', () => {
     const payload = buildOutboundCallPayload(paramsBase);
 
     expect(payload.assistantOverrides.variableValues).toEqual({
       prospecto_nombre: 'Dra. Martínez',
       especialidad: 'Consultorios dentales',
+      fecha_hora_actual: expect.any(String),
     });
+    // Formato de fecha en español ("… de <mes> de <año>, …"), no el {{now}} UTC.
+    expect(payload.assistantOverrides.variableValues.fecha_hora_actual).toContain(' de ');
   });
 
   it('aplica defaults sensatos cuando el lead no trae nombre/especialidad', () => {
@@ -71,6 +74,7 @@ describe('buildOutboundCallPayload — payload exacto para POST /call', () => {
     expect(payload.assistantOverrides.variableValues).toEqual({
       prospecto_nombre: VARIABLES_DEFAULT.prospecto_nombre, // doctor(a)
       especialidad: VARIABLES_DEFAULT.especialidad,
+      fecha_hora_actual: expect.any(String),
     });
   });
 

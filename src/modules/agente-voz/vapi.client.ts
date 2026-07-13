@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '../../config';
 import { logger } from '../../lib/logger';
+import { formatFechaHoraMexico } from '../../lib/fecha-mexico';
 import { buildAssistant, VapiTransientAssistant, VARIABLES_DEFAULT } from './assistant.config';
 
 export interface VapiCallResponse {
@@ -45,7 +46,7 @@ export interface VapiOutboundCallPayload {
   customer: { number: string };
   assistant: VapiTransientAssistant;
   assistantOverrides: {
-    variableValues: { prospecto_nombre: string; especialidad: string };
+    variableValues: { prospecto_nombre: string; especialidad: string; fecha_hora_actual: string };
     metadata: Record<string, string>;
   };
 }
@@ -69,6 +70,9 @@ export function buildOutboundCallPayload(params: OutboundCallParams): VapiOutbou
       variableValues: {
         prospecto_nombre: params.prospectoNombre?.trim() || VARIABLES_DEFAULT.prospecto_nombre,
         especialidad: params.especialidad?.trim() || VARIABLES_DEFAULT.especialidad,
+        // Fecha/hora de México calculada AQUÍ (no el {{now}} de Vapi, que llega
+        // en UTC): es la referencia de "hoy" del prompt (sección 10).
+        fecha_hora_actual: formatFechaHoraMexico(),
       },
       metadata: { ...params.metadata, leadId: params.leadId },
     },
