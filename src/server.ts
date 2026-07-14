@@ -25,7 +25,9 @@ export function buildApp(): express.Application {
   app.use(pinoHttp({ logger }));
 
   // ── Body parsers ──────────────────────────────────────────────────────────
-  app.use(express.json());
+  // El payload de call-ended de Vapi incluye la transcripción completa
+  // y puede superar el default de 100KB. 2MB cubre llamadas de hasta ~30 min.
+  app.use(express.json({ limit: '2mb' }));
 
   // ── Health ────────────────────────────────────────────────────────────────
   app.get('/health', (_req, res) => {
