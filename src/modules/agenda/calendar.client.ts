@@ -48,17 +48,26 @@ export class CalendarClient {
     const calendarId = getCalendarId();
     logger.debug({ summary: params.summary, start: params.startIso }, 'Creando evento en Calendar');
 
+    // conferenceData (link de Meet) solo funciona con Google Workspace: un Gmail
+    // personal responde "Invalid conference type". Se activa por env
+    // GOOGLE_MEET_ENABLED; con el flag apagado el evento se crea sin Meet y
+    // meetUrl queda null, sin romper el flujo.
+    const meetEnabled = config.GOOGLE_MEET_ENABLED;
+
     const requestBody: calendar_v3.Schema$Event = {
       summary: params.summary,
       description: params.description ?? null,
       start: { dateTime: params.startIso, timeZone: TZ },
       end: { dateTime: params.endIso, timeZone: TZ },
-      conferenceData: {
-        createRequest: {
-          requestId: `lead-${Date.now()}`,
-          conferenceSolutionKey: { type: 'hangoutsMeet' },
+      ...(meetEnabled && {
+        conferenceData: {
+          createRequest: {
+            // requestId único por evento: idempotencia de la creación de Meet.
+            requestId: `lead-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+            conferenceSolutionKey: { type: 'hangoutsMeet' },
+          },
         },
-      },
+      }),
       ...(params.attendeeEmail && {
         attendees: [{ email: params.attendeeEmail }],
       }),
@@ -66,7 +75,9 @@ export class CalendarClient {
 
     const response = await this.cal.events.insert({
       calendarId,
-      conferenceDataVersion: 1,
+      // conferenceDataVersion: 1 es obligatorio para que Google procese el
+      // createRequest y devuelva los entryPoints con el link de Meet.
+      ...(meetEnabled && { conferenceDataVersion: 1 }),
       requestBody,
     });
 
@@ -82,8 +93,12 @@ export class CalendarClient {
 
   async getBusySlots(dayIso: string): Promise<Array<{ start: string; end: string }>> {
     const calendarId = getCalendarId();
-    const timeMin = `${dayIso}T00:00:00`;
-    const timeMax = `${dayIso}T23:59:59`;
+
+    // RFC3339 completo: Google Calendar rechaza datetimes sin timezone offset.
+    // Usamos -06:00 (CST) para abarcar el día completo en México; durante CDT
+    // (-05:00) el desfase de 1 hora en los bordes es inocuo para freeBusy.
+    const timeMin = new Date(`${dayIso}T00:00:00-06:00`).toISOString();
+    const timeMax = new Date(`${dayIso}T23:59:59-06:00`).toISOString();
 
     const response = await this.cal.freebusy.query({
       requestBody: {

@@ -70,6 +70,15 @@ const envSchema = z.object({
   GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
   GOOGLE_PRIVATE_KEY: z.string().min(1).optional(),
   GOOGLE_CALENDAR_ID: z.string().min(1).optional(),
+  // Genera el link de Google Meet al crear el evento (conferenceData). Requiere
+  // cuenta Google Workspace: un Gmail personal responde "Invalid conference
+  // type" al pedir Meet por API. Default apagado para no romper el flujo en
+  // pruebas con Gmail personal; en producción va en true con el calendario
+  // Workspace del asesor.
+  GOOGLE_MEET_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 
   // ── Kapso WhatsApp (opcional en esta fase) ────────────────────────────────
   KAPSO_API_URL: z.string().url().optional(),
