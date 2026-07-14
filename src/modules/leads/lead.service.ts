@@ -65,6 +65,9 @@ export const LeadService = {
     // Valida la transición — lanza InvalidTransitionError si es ilegal
     validateTransition(lead.status, newStatus);
 
+    // Captura el estado ANTERIOR antes de mutar el documento, para el log.
+    const prevStatus = lead.status;
+
     lead.status = newStatus;
 
     if (meta?.nota != null) lead.notas.push(meta.nota);
@@ -79,7 +82,7 @@ export const LeadService = {
 
     const updated = await lead.save();
     logger.info(
-      { leadId: updated._id.toString(), prevStatus: lead.status, newStatus },
+      { leadId: updated._id.toString(), prevStatus, newStatus },
       'Transición de status ejecutada',
     );
     return updated;
