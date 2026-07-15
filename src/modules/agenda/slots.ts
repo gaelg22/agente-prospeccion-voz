@@ -1,13 +1,43 @@
 import { CalendarClient } from './calendar.client';
 
 const TZ = 'America/Mexico_City';
-const OPEN_HOUR = 9;
-const CLOSE_HOUR = 21;
 
 export interface AvailableSlot {
   startIso: string;
   endIso: string;
   startHour: number;
+}
+
+// ─── Tabla de horarios por día de la semana ───────────────────────────────────
+// Índice 0 = domingo … 6 = sábado (igual que Date.getDay()).
+// null = día inhábil: no se ofrecen slots.
+interface DayWindow { open: number; close: number; }
+const DAY_WINDOWS: ReadonlyArray<DayWindow | null> = [
+  null,                    // 0 domingo — inhábil
+  { open: 10, close: 20 }, // 1 lunes
+  { open: 10, close: 20 }, // 2 martes
+  { open: 10, close: 20 }, // 3 miércoles
+  { open: 10, close: 20 }, // 4 jueves
+  { open: 10, close: 20 }, // 5 viernes
+  { open: 8,  close: 12 }, // 6 sábado
+];
+
+/**
+ * Devuelve la ventana {open, close} para el día ISO dado (YYYY-MM-DD,
+ * evaluado en America/Mexico_City), o null si el día es inhábil.
+ */
+function getWindowForDay(dayIso: string): DayWindow | null {
+  // Usamos mediodía UTC para evitar saltos de día al convertir a MX
+  const probe = new Date(`${dayIso}T12:00:00Z`);
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: TZ,
+    weekday: 'short',
+  }).format(probe);
+  const dowMap: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  };
+  const dow = dowMap[weekday] ?? -1;
+  return DAY_WINDOWS[dow] ?? null;
 }
 
 // ─── Conversión correcta de hora local MX → UTC ───────────────────────────────
@@ -40,17 +70,29 @@ function mxLocalToUtcMs(dayIso: string, hour: number): number {
 
 /**
  * Returns available slots for a given date (YYYY-MM-DD, MX timezone) of the
- * given duration (default 1 h). Start hours go every hour from 09:00, and the
- * last slot must END by 21:00 (so a 2 h slot starts at most at 19:00) — minus
- * any busy periods from Calendar. `durationHours` = 1 (virtual) o 2 (presencial).
+ * given duration (default 1 h). Only hours within the day's window are offered;
+ * slots that would run past the closing hour are never included.
+ *
+ * Regla de corte (la cita debe CABER completa):
+ *   virtual  (1 h) → último inicio permitido = close - 1  (p. ej. 19:00 L-V, 11:00 Sáb)
+ *   presencial (2 h) → último inicio permitido = close - 2  (p. ej. 18:00 L-V, 10:00 Sáb)
+ *
+ * Devuelve [] para días inhábiles (domingo) o si la ventana no admite la duración.
  */
 export async function getAvailableSlots(
   dayIso: string,
   client: CalendarClient = new CalendarClient(),
   durationHours = 1,
 ): Promise<AvailableSlot[]> {
-  const busy = await client.getBusySlots(dayIso);
+  const window = getWindowForDay(dayIso);
+  if (!window) return []; // día inhábil
 
+  const { open, close } = window;
+  // La cita debe caber completa: el último inicio posible es close - durationHours.
+  const lastStart = close - durationHours;
+  if (lastStart < open) return []; // duración no cabe en la ventana
+
+  const busy = await client.getBusySlots(dayIso);
   const busyRanges = busy.map((b) => ({
     start: new Date(b.start).getTime(),
     end: new Date(b.end).getTime(),
@@ -58,17 +100,15 @@ export async function getAvailableSlots(
 
   const slots: AvailableSlot[] = [];
 
-  for (let hour = OPEN_HOUR; hour + durationHours <= CLOSE_HOUR; hour += 1) {
+  for (let hour = open; hour <= lastStart; hour += 1) {
     const startIso = `${dayIso}T${String(hour).padStart(2, '0')}:00:00`;
     const endHour = hour + durationHours;
     const endIso = `${dayIso}T${String(endHour).padStart(2, '0')}:00:00`;
 
-    // Usar la conversión correcta a UTC (respeta CDT/CST)
     const slotStart = mxLocalToUtcMs(dayIso, hour);
     const slotEnd = mxLocalToUtcMs(dayIso, endHour);
 
     const isBusy = busyRanges.some((b) => slotStart < b.end && slotEnd > b.start);
-
     if (!isBusy) {
       slots.push({ startIso, endIso, startHour: hour });
     }
@@ -91,14 +131,15 @@ export function formatDateMx(date: Date = new Date()): string {
 
 export interface DayWithSlots {
   fecha: string;           // YYYY-MM-DD
-  horas: string[];         // ["09:00", "11:00", ...]
+  horas: string[];         // ["10:00", "11:00", ...]
 }
 
 /**
  * Iterates from tomorrow forward (up to maxDays) until it finds
  * up to `limit` days that have at least one free slot of `durationHours` in
- * Calendar. Used by handleVerificarDisponibilidad; la duración depende de la
- * modalidad ya elegida (1 h virtual, 2 h presencial).
+ * Calendar. Used by handleVerificarDisponibilidad.
+ *
+ * Días inhábiles (domingo) se saltan automáticamente — no generan entradas vacías.
  */
 export async function getNextDaysWithSlots(
   client: CalendarClient = new CalendarClient(),
