@@ -1,4 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// calling-window → lib/horario → config.ts (process.exit si faltan envs).
+// Mock con el horario default: L-V 10-20, sáb 8-12, dom inhábil.
+vi.mock('../../config', () => ({
+  config: { HORARIO_SEMANAL: '-,10-20,10-20,10-20,10-20,10-20,8-12' },
+}));
+
 import { isInCallingWindow, isMorningSlot, nextDayOppositeSlot } from '../calling-window';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

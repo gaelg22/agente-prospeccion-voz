@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// slots → calendar.client → config.ts (process.exit si faltan envs). Mock mínimo.
-vi.mock('../../../config', () => ({ config: { GOOGLE_MEET_ENABLED: false } }));
+// slots → calendar.client / lib/horario → config.ts (process.exit si faltan
+// envs). Mock mínimo con el horario default.
+vi.mock('../../../config', () => ({
+  config: {
+    GOOGLE_MEET_ENABLED: false,
+    HORARIO_SEMANAL: '-,10-20,10-20,10-20,10-20,10-20,8-12',
+  },
+}));
 
 import { getAvailableSlots } from '../slots';
 import type { CalendarClient } from '../calendar.client';

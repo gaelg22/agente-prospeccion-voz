@@ -103,6 +103,12 @@ const envSchema = z.object({
   AGENDA_COLLECTION: z.string().default('agendaJobs'),
   CALL_CADENCE_MINUTES: z.coerce.number().int().positive().default(10),
 
+  // Horario de atención (llamadas Y citas), America/Mexico_City. 7 entradas
+  // separadas por coma, DOMINGO primero (orden Date.getDay()); "open-close" en
+  // horas de 24 h (close exclusivo) o "-" para día inhábil. El formato lo valida
+  // lib/horario.ts al primer uso. Defaults: L-V 10-20, sáb 8-12, dom inhábil.
+  HORARIO_SEMANAL: z.string().min(1).default('-,10-20,10-20,10-20,10-20,10-20,8-12'),
+
   // Kill-switch de la cola: los jobs se registran siempre, pero solo disparan
   // llamadas reales cuando COLA_ACTIVA=true. Default apagado por seguridad.
   COLA_ACTIVA: z

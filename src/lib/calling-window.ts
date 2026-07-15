@@ -3,42 +3,16 @@
  *
  * Ventana de llamadas salientes — America/Mexico_City.
  *
- * Horario único (configurable vía env):
+ * La tabla de horarios por día vive en lib/horario.ts (fuente única compartida
+ * con los slots de citas) y es configurable vía env HORARIO_SEMANAL. Defaults:
  *   Lunes–Viernes  10:00–20:00  (exclusive)
  *   Sábado         08:00–12:00  (exclusive)
  *   Domingo        inhábil
- *
- * La tabla puede sobreescribirse con las vars de entorno
- * CALLING_WINDOW_MON…SUN (formato "HH:MM-HH:MM" o "" para inhábil).
- * Ver config.ts para los defaults.
  */
 
+import { getWindowForDow } from './horario';
+
 const TZ = 'America/Mexico_City';
-
-// ─── Tabla de ventana por día de la semana ────────────────────────────────────
-// Índice 0 = domingo … 6 = sábado (igual que Date.getDay())
-// null significa día inhábil.
-export interface DayWindow {
-  open: number;  // hora de inicio (inclusive), 0–23
-  close: number; // hora de cierre (exclusive), 1–24
-}
-
-// Ventana default hardcodeada; se puede pisar con env.
-const DEFAULT_WINDOWS: ReadonlyArray<DayWindow | null> = [
-  null,                    // 0 domingo — inhábil
-  { open: 10, close: 20 }, // 1 lunes
-  { open: 10, close: 20 }, // 2 martes
-  { open: 10, close: 20 }, // 3 miércoles
-  { open: 10, close: 20 }, // 4 jueves
-  { open: 10, close: 20 }, // 5 viernes
-  { open: 8, close: 12 },  // 6 sábado
-];
-
-/** Devuelve la ventana del día de la semana (0=dom…6=sáb), o null si inhábil. */
-export function getWindowForDow(dow: number): DayWindow | null {
-  if (dow < 0 || dow > 6) return null;
-  return DEFAULT_WINDOWS[dow] ?? null;
-}
 
 // ─── Helpers de fecha MX ──────────────────────────────────────────────────────
 

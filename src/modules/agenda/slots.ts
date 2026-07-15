@@ -1,4 +1,5 @@
 import { CalendarClient } from './calendar.client';
+import { getWindowForDayIso } from '../../lib/horario';
 
 const TZ = 'America/Mexico_City';
 
@@ -8,37 +9,8 @@ export interface AvailableSlot {
   startHour: number;
 }
 
-// ─── Tabla de horarios por día de la semana ───────────────────────────────────
-// Índice 0 = domingo … 6 = sábado (igual que Date.getDay()).
-// null = día inhábil: no se ofrecen slots.
-interface DayWindow { open: number; close: number; }
-const DAY_WINDOWS: ReadonlyArray<DayWindow | null> = [
-  null,                    // 0 domingo — inhábil
-  { open: 10, close: 20 }, // 1 lunes
-  { open: 10, close: 20 }, // 2 martes
-  { open: 10, close: 20 }, // 3 miércoles
-  { open: 10, close: 20 }, // 4 jueves
-  { open: 10, close: 20 }, // 5 viernes
-  { open: 8,  close: 12 }, // 6 sábado
-];
-
-/**
- * Devuelve la ventana {open, close} para el día ISO dado (YYYY-MM-DD,
- * evaluado en America/Mexico_City), o null si el día es inhábil.
- */
-function getWindowForDay(dayIso: string): DayWindow | null {
-  // Usamos mediodía UTC para evitar saltos de día al convertir a MX
-  const probe = new Date(`${dayIso}T12:00:00Z`);
-  const weekday = new Intl.DateTimeFormat('en-US', {
-    timeZone: TZ,
-    weekday: 'short',
-  }).format(probe);
-  const dowMap: Record<string, number> = {
-    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
-  };
-  const dow = dowMap[weekday] ?? -1;
-  return DAY_WINDOWS[dow] ?? null;
-}
+// La tabla de horarios por día vive en lib/horario.ts (fuente única compartida
+// con la ventana de llamadas), configurable vía env HORARIO_SEMANAL.
 
 // ─── Conversión correcta de hora local MX → UTC ───────────────────────────────
 // Resuelve el offset real del día usando Intl (maneja CST -6 y CDT -5).
@@ -84,7 +56,7 @@ export async function getAvailableSlots(
   client: CalendarClient = new CalendarClient(),
   durationHours = 1,
 ): Promise<AvailableSlot[]> {
-  const window = getWindowForDay(dayIso);
+  const window = getWindowForDayIso(dayIso);
   if (!window) return []; // día inhábil
 
   const { open, close } = window;
