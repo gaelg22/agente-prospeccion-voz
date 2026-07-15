@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DESENLACES_LLAMADA } from './assistant.config';
+import { MODALIDADES } from '../agenda/modalidad';
 
 // ─── Desenlaces que reporta el asistente de voz ───────────────────────────────
 // Fuente única: assistant.config.ts (mismo enum que ve el LLM en la tool
@@ -37,10 +38,17 @@ export const zArgsMarcarNoContactar = z.object({
 export const zArgsAgendarCita = z.object({
   fecha: z.string().min(1), // YYYY-MM-DD
   hora: z.string().min(1),  // HH:mm
+  // Modalidad ya elegida antes de agendar — decide la duración del evento
+  // (virtual 1 h, presencial 2 h). Default 'virtual' como fallback seguro.
+  modalidad: z.enum(MODALIDADES).default('virtual'),
   notas: z.string().optional(),
 });
 
-// verificar_disponibilidad no lleva parámetros — no requiere schema.
+// verificar_disponibilidad lleva la modalidad ya elegida: define la duración
+// de los slots que se buscan (1 h virtual, 2 h presencial). Default 'virtual'.
+export const zArgsVerificarDisponibilidad = z.object({
+  modalidad: z.enum(MODALIDADES).default('virtual'),
+});
 
 // ─── Payload completo del webhook de Vapi ────────────────────────────────────
 // Vapi envía { message: { type: "tool-calls", toolCallList: [...], call: {...} } }

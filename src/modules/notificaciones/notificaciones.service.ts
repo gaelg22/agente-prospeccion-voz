@@ -1,6 +1,7 @@
 import { config } from '../../config';
 import { logger } from '../../lib/logger';
 import { ILead } from '../leads/lead.schema';
+import { Modalidad } from '../agenda/modalidad';
 import { KapsoClient } from './kapso.client';
 
 const TZ = 'America/Mexico_City';
@@ -31,7 +32,7 @@ export class NotificacionesService {
    */
   async sendBookingConfirmation(
     lead: Pick<ILead, 'razonSocial' | 'telefono'>,
-    cita: { citaFecha: Date; meetUrl: string | null },
+    cita: { citaFecha: Date; meetUrl: string | null; modalidad?: Modalidad },
   ): Promise<void> {
     if (!lead.telefono) {
       logger.warn({ razonSocial: lead.razonSocial }, 'Cannot send WhatsApp — no phone number');
@@ -39,7 +40,12 @@ export class NotificacionesService {
     }
 
     const fechaFormateada = formatDateTime(cita.citaFecha);
-    const meetLink = cita.meetUrl ?? 'El enlace se enviará próximamente';
+    // En presencial no hay liga de videollamada: la variable meet_link del
+    // template lleva la nota de que el asesor acude en persona.
+    const meetLink =
+      cita.modalidad === 'presencial'
+        ? 'Cita presencial: el asesor acudirá con usted en la fecha indicada.'
+        : cita.meetUrl ?? 'El enlace se enviará próximamente';
 
     try {
       await this.kapso.sendTemplate({

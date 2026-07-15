@@ -37,6 +37,8 @@ export interface OutboundCallParams {
   prospectoNombre?: string | null;
   /** Giro/especialidad del prospecto ({{especialidad}}) */
   especialidad?: string | null;
+  /** ¿El lead cae en la zona presencial del asesor? ({{zona_presencial}}) */
+  esZonaPresencial?: boolean;
   /** Metadata adicional (ej. esReintento) — se fusiona junto al leadId */
   metadata?: Record<string, string>;
 }
@@ -46,7 +48,12 @@ export interface VapiOutboundCallPayload {
   customer: { number: string };
   assistant: VapiTransientAssistant;
   assistantOverrides: {
-    variableValues: { prospecto_nombre: string; especialidad: string; fecha_hora_actual: string };
+    variableValues: {
+      prospecto_nombre: string;
+      especialidad: string;
+      fecha_hora_actual: string;
+      zona_presencial: string;
+    };
     metadata: Record<string, string>;
   };
 }
@@ -73,6 +80,9 @@ export function buildOutboundCallPayload(params: OutboundCallParams): VapiOutbou
         // Fecha/hora de México calculada AQUÍ (no el {{now}} de Vapi, que llega
         // en UTC): es la referencia de "hoy" del prompt (sección 10).
         fecha_hora_actual: formatFechaHoraMexico(),
+        // Zona presencial calculada por lead (lib/zona-presencial): "sí" → Sofía
+        // pregunta modalidad; "no" → videollamada directa sin preguntar.
+        zona_presencial: params.esZonaPresencial ? 'sí' : 'no',
       },
       metadata: { ...params.metadata, leadId: params.leadId },
     },

@@ -2,6 +2,7 @@ import Agenda, { Job } from 'agenda';
 import { config } from '../../../config';
 import { logger } from '../../../lib/logger';
 import { isInCallingWindow } from '../../../lib/calling-window';
+import { esZonaPresencial } from '../../../lib/zona-presencial';
 import { LeadService } from '../../leads/lead.service';
 import { VapiClient } from '../../agente-voz/vapi.client';
 
@@ -35,12 +36,15 @@ export function defineMarcarLlamadaJob(agenda: Agenda): void {
 
     logger.info({ leadId: lead._id.toString(), telefono: lead.telefono }, 'Initiating Vapi call');
 
+    const enZonaPresencial = esZonaPresencial(lead.direccion.municipio, lead.direccion.estado);
+
     const vapiClient = new VapiClient();
     const call = await vapiClient.createCall({
       toNumber: lead.telefono,
       leadId: lead._id.toString(),
       prospectoNombre: lead.nombreComercial ?? lead.razonSocial,
       especialidad: lead.actividadEconomica,
+      esZonaPresencial: enZonaPresencial,
       metadata: { razonSocial: lead.razonSocial },
     });
 

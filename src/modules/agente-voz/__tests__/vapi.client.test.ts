@@ -58,6 +58,8 @@ describe('buildOutboundCallPayload — payload exacto para POST /call', () => {
       prospecto_nombre: 'Dra. Martínez',
       especialidad: 'Consultorios dentales',
       fecha_hora_actual: expect.any(String),
+      // Sin esZonaPresencial en params → default "no" (videollamada directa).
+      zona_presencial: 'no',
     });
     // Formato de fecha en español ("… de <mes> de <año>, …"), no el {{now}} UTC.
     expect(payload.assistantOverrides.variableValues.fecha_hora_actual).toContain(' de ');
@@ -75,7 +77,13 @@ describe('buildOutboundCallPayload — payload exacto para POST /call', () => {
       prospecto_nombre: VARIABLES_DEFAULT.prospecto_nombre, // doctor(a)
       especialidad: VARIABLES_DEFAULT.especialidad,
       fecha_hora_actual: expect.any(String),
+      zona_presencial: VARIABLES_DEFAULT.zona_presencial, // "no"
     });
+  });
+
+  it('esZonaPresencial=true → variableValues.zona_presencial="sí" (ofrece ambas modalidades)', () => {
+    const payload = buildOutboundCallPayload({ ...paramsBase, esZonaPresencial: true });
+    expect(payload.assistantOverrides.variableValues.zona_presencial).toBe('sí');
   });
 
   it('lleva metadata.leadId para correlacionar en el webhook (y no se puede pisar)', () => {

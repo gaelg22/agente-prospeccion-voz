@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import path from 'path';
 import { config } from '../../config';
+import { MODALIDADES } from '../agenda/modalidad';
 
 // ─── Tipos de tools de Vapi ───────────────────────────────────────────────────
 
@@ -193,11 +194,18 @@ export const assistantTools: readonly VapiTool[] = [
     function: {
       name: 'verificar_disponibilidad',
       description:
-        'Consulta la agenda del asesor y regresa hasta dos días con su ventana de horas libres para cita por videollamada. SIEMPRE llamar antes de ofrecer cualquier horario al prospecto.',
+        'Consulta la agenda del asesor y regresa hasta dos días con su ventana de horas libres para la modalidad ya elegida. La duración de los espacios depende de la modalidad (videollamada = 1 hora, presencial = 2 horas), así que la modalidad debe decidirse ANTES de llamar esta herramienta. SIEMPRE llamar antes de ofrecer cualquier horario al prospecto.',
       parameters: {
         type: 'object',
-        properties: {},
-        required: [],
+        properties: {
+          modalidad: {
+            type: 'string',
+            enum: MODALIDADES,
+            description:
+              'Modalidad ya elegida de la cita: "virtual" (videollamada, 1 hora) o "presencial" (2 horas). Fuera de la zona presencial del asesor siempre es "virtual".',
+          },
+        },
+        required: ['modalidad'],
       },
     },
     server: webhookServer,
@@ -208,7 +216,7 @@ export const assistantTools: readonly VapiTool[] = [
     function: {
       name: 'agendar_cita',
       description:
-        'Agenda la cita por videollamada en el día y hora que el prospecto confirmó de viva voz. Solo llamar con día y hora ya aceptados por la persona, y que hayan sido ofrecidos por verificar_disponibilidad. Regresa el folio de confirmación.',
+        'Agenda la cita en el día y hora que el prospecto confirmó de viva voz, en la modalidad elegida (videollamada o presencial). Solo llamar con día y hora ya aceptados por la persona, y que hayan sido ofrecidos por verificar_disponibilidad. Regresa el folio de confirmación.',
       parameters: {
         type: 'object',
         properties: {
@@ -221,13 +229,19 @@ export const assistantTools: readonly VapiTool[] = [
             description:
               'Hora de inicio en formato HH:mm de 24 horas (ej. 17:00). Debe ser una hora en punto dentro de la ventana ofrecida',
           },
+          modalidad: {
+            type: 'string',
+            enum: MODALIDADES,
+            description:
+              'Modalidad de la cita: "virtual" (videollamada, 1 hora) o "presencial" (2 horas). Debe ser la misma que se usó en verificar_disponibilidad.',
+          },
           notas: {
             type: 'string',
             description:
-              "Opcional: producto de interés u observaciones dichas por el prospecto (ej. 'gastos médicos, para él y su esposa', 'no tiene WhatsApp')",
+              "Opcional: observaciones dichas por el prospecto (ej. 'para él y su esposa', 'no tiene WhatsApp')",
           },
         },
-        required: ['fecha', 'hora'],
+        required: ['fecha', 'hora', 'modalidad'],
       },
     },
     server: webhookServer,
@@ -328,6 +342,10 @@ export const systemPrompt = cargarSystemPrompt();
 export const VARIABLES_DEFAULT = {
   prospecto_nombre: 'doctor(a)',
   especialidad: 'servicios profesionales',
+  // ¿El lead cae en la zona presencial del asesor? Lo calcula el backend por
+  // lead (lib/zona-presencial). "no" es el default seguro: sin señal de zona,
+  // Sofía ofrece videollamada directa sin preguntar modalidad.
+  zona_presencial: 'no',
 } as const;
 
 // ─── Assistant transient ──────────────────────────────────────────────────────
@@ -367,9 +385,10 @@ export interface VapiTransientAssistant {
 export function buildAssistant(): VapiTransientAssistant {
   return {
     name: config.AGENTE_NOMBRE,
-    // Apertura del Paso 1 del prompt. {{prospecto_nombre}} lo sustituye Vapi
-    // con assistantOverrides.variableValues, igual que en el system prompt.
-    firstMessage: `Hola, buenas. Le llama ${config.AGENTE_NOMBRE}, asistente virtual de ${config.EMPRESA_NOMBRE}. ¿Hablo con {{prospecto_nombre}}?`,
+    // Apertura del Paso 1 del prompt: frase corta de enganche (cálida, sin
+    // producto) + identificación clara en los primeros segundos (compliance).
+    // {{prospecto_nombre}} lo sustituye Vapi con assistantOverrides.variableValues.
+    firstMessage: `Hola, muy buenas, ¿cómo está? Le llama ${config.AGENTE_NOMBRE}, asistente virtual de ${config.EMPRESA_NOMBRE}. ¿Hablo con {{prospecto_nombre}}?`,
     model: {
       provider: 'anthropic',
       model: config.VAPI_LLM_MODEL,

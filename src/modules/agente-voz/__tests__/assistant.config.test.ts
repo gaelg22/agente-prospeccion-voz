@@ -61,9 +61,22 @@ describe('assistantTools — estructura y server target', () => {
     }
   });
 
-  it('agendar_cita requiere fecha y hora', () => {
+  it('agendar_cita requiere fecha, hora y modalidad', () => {
     const agendar = assistantTools.find((t) => t.function.name === 'agendar_cita');
-    expect(agendar?.function.parameters.required).toEqual(['fecha', 'hora']);
+    expect(agendar?.function.parameters.required).toEqual(['fecha', 'hora', 'modalidad']);
+    expect(agendar?.function.parameters.properties['modalidad']?.enum).toEqual([
+      'virtual',
+      'presencial',
+    ]);
+  });
+
+  it('verificar_disponibilidad requiere la modalidad (define la duración del slot)', () => {
+    const verificar = assistantTools.find((t) => t.function.name === 'verificar_disponibilidad');
+    expect(verificar?.function.parameters.required).toEqual(['modalidad']);
+    expect(verificar?.function.parameters.properties['modalidad']?.enum).toEqual([
+      'virtual',
+      'presencial',
+    ]);
   });
 
   it('el enum de registrar_resultado tiene exactamente los 7 desenlaces', () => {
@@ -214,6 +227,27 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     // backend en zona de México vía variableValues.fecha_hora_actual.
     expect(systemPrompt).toContain('{{fecha_hora_actual}}');
     expect(systemPrompt).not.toContain('{{now}}');
+    // Zona presencial: la calcula el backend por lead y viaja como variable.
+    expect(systemPrompt).toContain('{{zona_presencial}}');
+  });
+
+  it('la postura es de APOYO y ya NO enumera productos ni líneas de negocio', () => {
+    // Cambio de reglas de negocio (asesor): Sofía no presenta productos — eso
+    // lo hace el Asesor en la cita. El pitch es una sola frase de apoyo.
+    expect(systemPrompt).toContain('revisen si están bien protegidos');
+    expect(systemPrompt).toContain('NO presentas ni enumeras productos');
+    // Restos del catálogo del guion v1 eliminados.
+    expect(systemPrompt).not.toContain('planes de vida y gastos médicos');
+    expect(systemPrompt).not.toContain('protección de vida, gastos médicos o ahorro');
+  });
+
+  it('el flujo decide la modalidad por zona antes de agendar y fija la duración', () => {
+    // presencial (en zona) = 2 h, videollamada = 1 h; la modalidad se decide en
+    // el Paso 4, ANTES de consultar la agenda.
+    expect(systemPrompt).toContain('videollamada = **una hora**; presencial = **dos horas**');
+    expect(systemPrompt).toContain('«sí»');
+    expect(systemPrompt).toContain('«no»');
+    expect(systemPrompt).toContain('pasando la `modalidad`');
   });
 
   it('la regla de falla técnica prohíbe el silencio tras un error de herramienta', () => {

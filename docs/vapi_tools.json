@@ -19,11 +19,17 @@
     ],
     "function": {
       "name": "verificar_disponibilidad",
-      "description": "Consulta la agenda del asesor y regresa hasta dos días con su ventana de horas libres para cita por videollamada. SIEMPRE llamar antes de ofrecer cualquier horario al prospecto.",
+      "description": "Consulta la agenda del asesor y regresa hasta dos días con su ventana de horas libres para la modalidad ya elegida. La duración de los espacios depende de la modalidad (videollamada = 1 hora, presencial = 2 horas), así que la modalidad debe decidirse ANTES de llamar esta herramienta. SIEMPRE llamar antes de ofrecer cualquier horario al prospecto.",
       "parameters": {
         "type": "object",
-        "properties": {},
-        "required": []
+        "properties": {
+          "modalidad": {
+            "type": "string",
+            "enum": ["virtual", "presencial"],
+            "description": "Modalidad ya elegida de la cita: \"virtual\" (videollamada, 1 hora) o \"presencial\" (2 horas). Fuera de la zona presencial del asesor siempre es \"virtual\"."
+          }
+        },
+        "required": ["modalidad"]
       }
     },
     "server": { "url": "https://TU-SERVICIO.onrender.com/webhooks/vapi" }
@@ -40,7 +46,7 @@
     ],
     "function": {
       "name": "agendar_cita",
-      "description": "Agenda la cita por videollamada en el día y hora que el prospecto confirmó de viva voz. Solo llamar con día y hora ya aceptados por la persona, y que hayan sido ofrecidos por verificar_disponibilidad. Regresa el folio de confirmación.",
+      "description": "Agenda la cita en el día y hora que el prospecto confirmó de viva voz, en la modalidad elegida (videollamada o presencial). Solo llamar con día y hora ya aceptados por la persona, y que hayan sido ofrecidos por verificar_disponibilidad. Regresa el folio de confirmación.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -52,12 +58,17 @@
             "type": "string",
             "description": "Hora de inicio en formato HH:mm de 24 horas (ej. 17:00). Debe ser una hora en punto dentro de la ventana ofrecida"
           },
+          "modalidad": {
+            "type": "string",
+            "enum": ["virtual", "presencial"],
+            "description": "Modalidad de la cita: \"virtual\" (videollamada, 1 hora) o \"presencial\" (2 horas). Debe ser la misma que se usó en verificar_disponibilidad."
+          },
           "notas": {
             "type": "string",
-            "description": "Opcional: producto de interés u observaciones dichas por el prospecto (ej. 'gastos médicos, para él y su esposa', 'no tiene WhatsApp')"
+            "description": "Opcional: observaciones dichas por el prospecto (ej. 'para él y su esposa', 'no tiene WhatsApp')"
           }
         },
-        "required": ["fecha", "hora"]
+        "required": ["fecha", "hora", "modalidad"]
       }
     },
     "server": { "url": "https://TU-SERVICIO.onrender.com/webhooks/vapi" }

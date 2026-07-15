@@ -66,6 +66,20 @@ const envSchema = z.object({
   EMPRESA_NOMBRE: z.string().min(1).default('Asesoría de Seguros (prueba)'),
   TELEFONO_OFICIAL: z.string().min(1).default('55 0000 0000'),
 
+  // ── Zona presencial del asesor ────────────────────────────────────────────
+  // Estado y municipios donde el asesor atiende EN PERSONA. Un lead en esta zona
+  // (municipio del lead contiene alguno de los municipios como palabra completa
+  // Y estado == ASESOR_ESTADO, todo normalizado sin acentos) puede elegir cita
+  // presencial (2 h) o videollamada (1 h); fuera de zona, videollamada directa.
+  // ZONA_PRESENCIAL_MUNICIPIOS: lista separada por comas con los nombres cortos
+  // (DENUE entrega los oficiales largos, p. ej. "San Pedro Tlaquepaque", y el
+  // match por contención de token los captura). Ver lib/zona-presencial.ts.
+  ASESOR_ESTADO: z.string().min(1).default('Jalisco'),
+  ZONA_PRESENCIAL_MUNICIPIOS: z
+    .string()
+    .min(1)
+    .default('Guadalajara,Zapopan,Tlaquepaque,Tonalá,Tlajomulco'),
+
   // ── Google Calendar (opcional en esta fase) ───────────────────────────────
   GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
   GOOGLE_PRIVATE_KEY: z.string().min(1).optional(),

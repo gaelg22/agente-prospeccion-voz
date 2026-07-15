@@ -6,7 +6,12 @@ import type { Job } from 'agenda';
 // ─── Mocks (hoisted para poder mutar el flag entre tests) ─────────────────────
 
 const { mockConfig, createCallMock } = vi.hoisted(() => ({
-  mockConfig: { COLA_ACTIVA: false },
+  mockConfig: {
+    COLA_ACTIVA: false,
+    // Leídas por lib/zona-presencial al calcular la modalidad del lead.
+    ASESOR_ESTADO: 'Jalisco',
+    ZONA_PRESENCIAL_MUNICIPIOS: 'Guadalajara,Zapopan,Tlaquepaque,Tonalá,Tlajomulco',
+  },
   createCallMock: vi.fn(),
 }));
 
@@ -113,6 +118,8 @@ describe('COLA_ACTIVA=true — los jobs ejecutan el flujo normal', () => {
       razonSocial: 'Empresa Test S.A.',
       nombreComercial: 'Consultorio Test',
       actividadEconomica: 'Consultorios de medicina general',
+      // Zapopan/Jalisco → zona presencial: la llamada debe llevar esZonaPresencial=true.
+      direccion: { municipio: 'Zapopan', estado: 'Jalisco' },
     };
     vi.mocked(LeadService.findNextToCall).mockResolvedValue(lead as never);
 
@@ -125,6 +132,7 @@ describe('COLA_ACTIVA=true — los jobs ejecutan el flujo normal', () => {
         leadId: lead._id.toString(),
         prospectoNombre: 'Consultorio Test',
         especialidad: 'Consultorios de medicina general',
+        esZonaPresencial: true,
       }),
     );
     expect(LeadService.transition).toHaveBeenCalledWith(
@@ -141,6 +149,8 @@ describe('COLA_ACTIVA=true — los jobs ejecutan el flujo normal', () => {
       telefono: '+525512345678',
       razonSocial: 'Empresa Test S.A.',
       actividadEconomica: 'Consultorios dentales',
+      // Monterrey/Nuevo León → fuera de zona: esZonaPresencial=false (virtual).
+      direccion: { municipio: 'Monterrey', estado: 'Nuevo León' },
     };
     vi.mocked(LeadService.findById).mockResolvedValue(lead as never);
 
@@ -153,6 +163,7 @@ describe('COLA_ACTIVA=true — los jobs ejecutan el flujo normal', () => {
         leadId: lead._id.toString(),
         // sin nombreComercial cae a razonSocial
         prospectoNombre: 'Empresa Test S.A.',
+        esZonaPresencial: false,
         metadata: expect.objectContaining({ esReintento: 'true' }),
       }),
     );

@@ -2,6 +2,7 @@ import Agenda, { Job } from 'agenda';
 import { config } from '../../../config';
 import { logger } from '../../../lib/logger';
 import { isInCallingWindow } from '../../../lib/calling-window';
+import { esZonaPresencial } from '../../../lib/zona-presencial';
 import { LeadService } from '../../leads/lead.service';
 import { VapiClient } from '../../agente-voz/vapi.client';
 
@@ -52,6 +53,7 @@ export function defineReintentoJob(agenda: Agenda): void {
       leadId: lead._id.toString(),
       prospectoNombre: lead.nombreComercial ?? lead.razonSocial,
       especialidad: lead.actividadEconomica,
+      esZonaPresencial: esZonaPresencial(lead.direccion.municipio, lead.direccion.estado),
       metadata: { razonSocial: lead.razonSocial, esReintento: 'true' },
     });
 

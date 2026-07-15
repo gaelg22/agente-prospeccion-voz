@@ -28,6 +28,12 @@ export interface CalendarEventParams {
   startIso: string;
   endIso: string;
   attendeeEmail?: string;
+  /**
+   * Pide link de Meet para este evento. Default true (compat). En citas
+   * presenciales va false: no hay videollamada, así que no se genera Meet.
+   * Además de este flag, se requiere GOOGLE_MEET_ENABLED activado.
+   */
+  withMeet?: boolean;
 }
 
 export interface CalendarEventResult {
@@ -51,8 +57,9 @@ export class CalendarClient {
     // conferenceData (link de Meet) solo funciona con Google Workspace: un Gmail
     // personal responde "Invalid conference type". Se activa por env
     // GOOGLE_MEET_ENABLED; con el flag apagado el evento se crea sin Meet y
-    // meetUrl queda null, sin romper el flujo.
-    const meetEnabled = config.GOOGLE_MEET_ENABLED;
+    // meetUrl queda null, sin romper el flujo. En citas presenciales el caller
+    // pasa withMeet=false: no hay videollamada, así que tampoco link de Meet.
+    const meetEnabled = config.GOOGLE_MEET_ENABLED && params.withMeet !== false;
 
     const requestBody: calendar_v3.Schema$Event = {
       summary: params.summary,
