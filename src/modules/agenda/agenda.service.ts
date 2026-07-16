@@ -6,6 +6,25 @@ import { CalendarClient } from './calendar.client';
 import { getAvailableSlots } from './slots';
 import { Modalidad, duracionHoras } from './modalidad';
 
+// ─── Errores de dominio ───────────────────────────────────────────────────────
+
+/**
+ * El slot elegido por el prospecto ya no está disponible en Calendar.
+ * Ocurre cuando dos llamadas en paralelo eligen el mismo hueco o cuando
+ * el hueco se ocupa entre verificar_disponibilidad y agendar_cita.
+ * El handler de agendar_cita devuelve { ok: false } al LLM; el lead
+ * queda en llamado y el job de reconciliación lo reintenta.
+ */
+export class SlotNoDisponibleError extends Error {
+  readonly slotIso: string;
+  constructor(slotIso: string) {
+    super(`El slot ${slotIso} ya no está disponible en Calendar`);
+    this.name = 'SlotNoDisponibleError';
+    this.slotIso = slotIso;
+  }
+}
+
+
 export class AgendaService {
   private readonly calendar: CalendarClient;
   private readonly notificaciones: NotificacionesService;
@@ -68,6 +87,20 @@ export class AgendaService {
     }
 
     logger.info({ leadId: String(leadId), slotIso, modalidad }, 'Booking calendar slot');
+
+    // ── A4: Revalidación justo antes de crear el evento ───────────────────────
+    // El LLM eligió este slot durante verificar_disponibilidad, pero puede haber
+    // pasado tiempo desde entonces. Se consulta Calendar de nuevo para asegurarse
+    // de que el slot sigue libre. Si ya está ocupado, se lanza SlotNoDisponibleError
+    // y el handler devuelve { ok: false } al LLM sin tocar el status del lead.
+    const startHour = parseInt(hhStr, 10);
+    const slotsLibres = await getAvailableSlots(slotDate ?? '', this.calendar, duracion);
+    const slotValido = slotsLibres.some((s) => s.startHour === startHour);
+    if (!slotValido) {
+      logger.warn({ leadId: String(leadId), slotIso }, 'Slot ya no disponible al intentar agendar');
+      throw new SlotNoDisponibleError(slotIso);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     const esPresencial = modalidad === 'presencial';
     const modalidadLabel = esPresencial ? 'Presencial' : 'Videollamada';

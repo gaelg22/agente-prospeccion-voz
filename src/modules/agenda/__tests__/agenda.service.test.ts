@@ -3,7 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // config.ts hace process.exit() si faltan envs; calendar.client y kapso.client lo
 // leen al importarse. Se mockea con lo mínimo.
 vi.mock('../../../config', () => ({
-  config: { GOOGLE_MEET_ENABLED: false, KAPSO_WHATSAPP_TEMPLATE: 'confirmacion_cita' },
+  config: {
+    GOOGLE_MEET_ENABLED: false,
+    KAPSO_WHATSAPP_TEMPLATE: 'confirmacion_cita',
+    HORARIO_SEMANAL: '-,10-20,10-20,10-20,10-20,10-20,8-12',
+  },
 }));
 
 const mockLeadService = vi.hoisted(() => ({
@@ -25,17 +29,18 @@ const leadAcepto = {
   direccion: { municipio: 'Zapopan', estado: 'Jalisco' },
 };
 
-function setup() {
+function setup(busySlots: Array<{ start: string; end: string }> = []) {
   const createEvent = vi.fn(async (_p: CalendarEventParams) => ({
     eventId: 'evt-1',
     meetUrl: null,
     htmlLink: 'https://cal/evt-1',
   }));
+  const getBusySlots = vi.fn(async () => busySlots);
   const sendBookingConfirmation = vi.fn(async () => undefined);
-  const calendar = { createEvent } as unknown as CalendarClient;
+  const calendar = { createEvent, getBusySlots } as unknown as CalendarClient;
   const notificaciones = { sendBookingConfirmation } as unknown as NotificacionesService;
   const agenda = new AgendaService(calendar, notificaciones);
-  return { agenda, createEvent, sendBookingConfirmation };
+  return { agenda, createEvent, getBusySlots, sendBookingConfirmation };
 }
 
 describe('AgendaService.book — duración del evento por modalidad', () => {
@@ -124,5 +129,49 @@ describe('AgendaService.book — transición de status solo tras Calendar exitos
     );
     expect(createEvent).not.toHaveBeenCalled();
     expect(mockLeadService.transition).not.toHaveBeenCalled();
+  });
+});
+
+// ─── A4: Revalidación del slot justo antes de agendar ─────────────────────────
+
+describe('AgendaService.book — A4: revalidación de disponibilidad', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLeadService.findById.mockResolvedValue(leadAcepto);
+    mockLeadService.transition.mockResolvedValue({});
+  });
+
+  it('slot libre (sin ocupados): pasa la revalidación y crea el evento', async () => {
+    // busySlots=[] → ningún hueco ocupado → 17:00 está libre
+    const { agenda, createEvent } = setup([]);
+    await agenda.book('lead-1', '2026-08-03T17:00:00');
+
+    expect(createEvent).toHaveBeenCalledOnce();
+    expect(mockLeadService.transition).toHaveBeenCalledWith('lead-1', 'agendado', expect.anything());
+  });
+
+  it('slot ocupado: lanza SlotNoDisponibleError y NO crea el evento ni transiciona', async () => {
+    // getBusySlots devuelve el slot 17:00–18:00 como ocupado
+    // En UTC: 17:00 MX CST = 23:00 UTC
+    const busySlots = [
+      { start: '2026-08-03T23:00:00Z', end: '2026-08-04T00:00:00Z' },
+    ];
+    const { agenda, createEvent } = setup(busySlots);
+
+    const { SlotNoDisponibleError } = await import('../agenda.service');
+    await expect(agenda.book('lead-1', '2026-08-03T17:00:00')).rejects.toThrow(SlotNoDisponibleError);
+    expect(createEvent).not.toHaveBeenCalled();
+    expect(mockLeadService.transition).not.toHaveBeenCalled();
+  });
+
+  it('slot ocupado: el mensaje de error incluye el slotIso pedido', async () => {
+    const busySlots = [
+      { start: '2026-08-03T23:00:00Z', end: '2026-08-04T00:00:00Z' },
+    ];
+    const { agenda } = setup(busySlots);
+
+    const err = await agenda.book('lead-1', '2026-08-03T17:00:00').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('2026-08-03T17:00:00');
   });
 });
