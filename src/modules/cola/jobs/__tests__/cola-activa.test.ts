@@ -37,6 +37,11 @@ vi.mock('../../../agente-voz/vapi.client', () => ({
   VapiClient: vi.fn(() => ({ createCall: createCallMock })),
 }));
 
+// reintento.job ahora hace Lead.updateOne($unset noLlamarAntesDe) al terminar
+vi.mock('../../../leads/lead.schema', () => ({
+  Lead: { updateOne: vi.fn().mockResolvedValue({ modifiedCount: 1 }) },
+}));
+
 import { defineMarcarLlamadaJob } from '../marcar-llamada.job';
 import { defineReintentoJob } from '../reintento.job';
 import { LeadService } from '../../../leads/lead.service';

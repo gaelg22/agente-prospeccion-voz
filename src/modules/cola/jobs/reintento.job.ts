@@ -4,6 +4,7 @@ import { logger } from '../../../lib/logger';
 import { isInCallingWindow } from '../../../lib/calling-window';
 import { esZonaPresencial } from '../../../lib/zona-presencial';
 import { LeadService } from '../../leads/lead.service';
+import { Lead } from '../../leads/lead.schema';
 import { VapiClient } from '../../agente-voz/vapi.client';
 
 export const JOB_NAME_REINTENTO = 'reintento-llamada';
@@ -61,6 +62,10 @@ export function defineReintentoJob(agenda: Agenda): void {
       vapiCallId: call.id,
       nota: `Reintento iniciado: ${call.id}`,
     });
+
+    // Limpieza del embargo: el lead ya está en 'llamado', pero se borra
+    // noLlamarAntesDe para no dejar fechas viejas en el documento.
+    await Lead.updateOne({ _id: lead._id }, { $unset: { noLlamarAntesDe: 1 } });
 
     logger.info({ leadId, vapiCallId: call.id }, 'Reintento call placed');
   });

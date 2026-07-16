@@ -72,6 +72,11 @@ export interface ILead {
   noContactar: boolean;          // DNC forzoso — excluye al lead de toda marcación futura, sin importar el status
   intentos: number;              // nº de llamadas realizadas (0, 1, 2)
   ultimaLlamada?: Date;
+  // Embargo temporal de marcación: si está presente y en el futuro, marcar-llamada
+  // no puede levantar este lead. Lo pone ColaService.scheduleRetry() con la fecha
+  // exacta del slot de reintento; reintento.job.ts lo borra al ejecutar la llamada.
+  // Garantiza que el reintento se haga al día siguiente, no en los próximos 10 min.
+  noLlamarAntesDe?: Date;
   vapiCallId?: string;           // ID de la llamada en Vapi
   transcripcion?: string;        // resumen/transcripción de la última llamada
 
@@ -148,6 +153,7 @@ const leadSchema = new Schema<ILead>(
     noContactar: { type: Boolean, required: true, default: false },
     intentos: { type: Number, required: true, default: 0, min: 0, max: 2 },
     ultimaLlamada: Date,
+    noLlamarAntesDe: { type: Date, default: undefined },
     vapiCallId: String,
     transcripcion: String,
 
@@ -187,5 +193,10 @@ leadSchema.index(
 // Auxiliares para consultas frecuentes
 leadSchema.index({ status: 1, createdAt: 1 }, { name: 'idx_status_createdAt' });
 leadSchema.index({ fuente: 1 }, { name: 'idx_fuente' });
+// Índice para findNextToCall: filtra por status + embargo + FIFO
+leadSchema.index(
+  { status: 1, noLlamarAntesDe: 1, createdAt: 1 },
+  { name: 'idx_findNextToCall' },
+);
 
 export const Lead = model<ILead>('Lead', leadSchema);

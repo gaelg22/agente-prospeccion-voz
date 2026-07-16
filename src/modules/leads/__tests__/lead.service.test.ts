@@ -148,18 +148,57 @@ describe('LeadService.findNextToCall()', () => {
     vi.clearAllMocks();
   });
 
-  it('excluye leads con flag noContactar aunque estén en listo_llamar', async () => {
+  it('pasa el filtro correcto a Mongo (status + noContactar + embargo)', async () => {
     const lean = vi.fn().mockResolvedValue(null);
     const sort = vi.fn().mockReturnValue({ lean });
     vi.mocked(Lead.findOne).mockReturnValue({ sort } as never);
 
     await LeadService.findNextToCall();
 
-    expect(Lead.findOne).toHaveBeenCalledWith({
+    // El filtro debe incluir noLlamarAntesDe con $not: { $gt: <Date> }
+    expect(Lead.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'listo_llamar',
+        telefono: { $type: 'string' },
+        noContactar: { $ne: true },
+        noLlamarAntesDe: { $not: { $gt: expect.any(Date) } },
+      }),
+    );
+  });
+
+  it('embargo futuro: lead embargado no aparece (Mongo lo filtra — simulado con null)', async () => {
+    // Mongo devuelve null cuando el embargo bloquea al único candidato.
+    const lean = vi.fn().mockResolvedValue(null);
+    const sort = vi.fn().mockReturnValue({ lean });
+    vi.mocked(Lead.findOne).mockReturnValue({ sort } as never);
+
+    const result = await LeadService.findNextToCall();
+
+    expect(result).toBeNull();
+    // Verificamos que se pasó el filtro de embargo (la lógica de exclusión la hace Mongo)
+    expect(Lead.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        noLlamarAntesDe: { $not: { $gt: expect.any(Date) } },
+      }),
+    );
+  });
+
+  it('sin embargo (campo ausente): Mongo devuelve el lead normalmente', async () => {
+    const leadSinEmbargo = {
+      _id: new Types.ObjectId(),
       status: 'listo_llamar',
-      telefono: { $type: 'string' },
-      noContactar: { $ne: true },
-    });
+      telefono: '+525500000000',
+      noContactar: false,
+      // noLlamarAntesDe ausente
+    } as unknown as ILead;
+
+    const lean = vi.fn().mockResolvedValue(leadSinEmbargo);
+    const sort = vi.fn().mockReturnValue({ lean });
+    vi.mocked(Lead.findOne).mockReturnValue({ sort } as never);
+
+    const result = await LeadService.findNextToCall();
+
+    expect(result).toEqual(leadSinEmbargo);
   });
 });
 

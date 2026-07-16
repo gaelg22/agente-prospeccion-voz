@@ -106,15 +106,22 @@ export const LeadService = {
 
   /**
    * Devuelve el siguiente lead elegible para llamada:
-   * status=listo_llamar, con teléfono presente y sin flag DNC.
+   * status=listo_llamar, con teléfono presente y sin flag DNC ni embargo activo.
    * Ordenado por createdAt (FIFO).
-   * `$ne: true` cubre también documentos anteriores al campo (sin noContactar).
+   *
+   * noLlamarAntesDe: si está presente y en el futuro, el lead está embargado
+   * para su reintento programado. `$not: { $gt: now }` cubre los tres casos:
+   *   - campo ausente (undefined/null)  → pasa ✓
+   *   - campo <= ahora                  → pasa ✓
+   *   - campo > ahora                   → excluido ✗
    */
   async findNextToCall(): Promise<ILead | null> {
+    const ahora = new Date();
     return Lead.findOne({
       status: 'listo_llamar',
       telefono: { $type: 'string' },
       noContactar: { $ne: true },
+      noLlamarAntesDe: { $not: { $gt: ahora } },
     })
       .sort({ createdAt: 1 })
       .lean();
