@@ -133,4 +133,21 @@ export const LeadService = {
       .sort({ ultimaLlamada: 1 })
       .lean();
   },
+
+  /**
+   * Leads varados en status=acepto SIN cita real (sin cita.googleEventId) cuya
+   * ultimaLlamada es anterior a `antesDe`: registrar_resultado reportó acepto
+   * pero agendar_cita nunca corrió o falló, así que no existe evento en
+   * Calendar. Los recoge el job de reconciliación. Un acepto CON cita solo es
+   * un instante intermedio dentro de book() y jamás debe barrerse.
+   */
+  async findAceptoSinCita(antesDe: Date): Promise<ILead[]> {
+    return Lead.find({
+      status: 'acepto',
+      ultimaLlamada: { $lte: antesDe },
+      'cita.googleEventId': { $exists: false },
+    })
+      .sort({ ultimaLlamada: 1 })
+      .lean();
+  },
 };

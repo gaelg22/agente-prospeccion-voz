@@ -15,6 +15,7 @@ export const RECONCILIAR_CADA_MINUTOS = 10;
 export const UMBRAL_VARADO_MINUTOS = 15;
 
 const NOTA_SIN_DESENLACE = 'reconciliado: webhook nunca llegó';
+const NOTA_ACEPTO_SIN_CITA = 'reconciliado: acepto sin cita';
 
 /**
  * Extrae el desenlace que el asistente alcanzó a reportar durante la llamada.
@@ -63,13 +64,19 @@ export function extraerDesenlace(call: VapiCallResponse): DesenlaceLlamada | nul
 export function defineReconciliarLlamadasJob(agenda: Agenda): void {
   agenda.define(JOB_NAME_RECONCILIAR, { concurrency: 1 }, async (_job: Job) => {
     const umbral = new Date(Date.now() - UMBRAL_VARADO_MINUTOS * 60_000);
-    const varados = await LeadService.findEstancadosEnLlamado(umbral);
+    await barrerLlamadosVarados(umbral);
+    await barrerAceptoSinCita(umbral);
+  });
+}
 
-    if (varados.length === 0) {
-      logger.debug('reconciliar-llamadas: sin leads varados en llamado');
-      return;
-    }
+// ─── Barrido 1: leads varados en `llamado` ────────────────────────────────────
 
+async function barrerLlamadosVarados(umbral: Date): Promise<void> {
+  const varados = await LeadService.findEstancadosEnLlamado(umbral);
+
+  if (varados.length === 0) {
+    logger.debug('reconciliar-llamadas: sin leads varados en llamado');
+  } else {
     logger.info({ total: varados.length }, 'reconciliar-llamadas: leads varados encontrados');
 
     const vapiClient = new VapiClient();
@@ -128,5 +135,47 @@ export function defineReconciliarLlamadasJob(agenda: Agenda): void {
         );
       }
     }
-  });
+  }
+}
+
+// ─── Barrido 2: leads en `acepto` sin cita real ───────────────────────────────
+// Hermano del barrido de `llamado`: registrar_resultado reportó acepto pero
+// agendar_cita nunca corrió o falló, así que no hay evento en Calendar y nadie
+// va a volver a llamar al lead. Se trata como error_tecnico (mismo mapeo que
+// el webhook): reintento si intentos < 2, no_contactable si ya se agotaron.
+
+async function barrerAceptoSinCita(umbral: Date): Promise<void> {
+  const varados = await LeadService.findAceptoSinCita(umbral);
+
+  if (varados.length === 0) {
+    logger.debug('reconciliar-llamadas: sin leads varados en acepto sin cita');
+    return;
+  }
+
+  logger.info({ total: varados.length }, 'reconciliar-llamadas: leads en acepto sin cita encontrados');
+
+  for (const lead of varados) {
+    const leadId = lead._id.toString();
+    try {
+      const outcome = mapearDesenlace('error_tecnico', lead.intentos);
+
+      await LeadService.transition(lead._id, outcome.nuevoStatus, {
+        nota: `${outcome.nota} | ${NOTA_ACEPTO_SIN_CITA}`,
+      });
+
+      if (outcome.debeReintentar) {
+        await ColaService.scheduleRetry(leadId, lead.ultimaLlamada ?? new Date());
+      }
+
+      logger.info(
+        { leadId, nuevoStatus: outcome.nuevoStatus, reintento: outcome.debeReintentar },
+        'reconciliar-llamadas: acepto sin cita reconciliado',
+      );
+    } catch (err) {
+      logger.error(
+        { err, leadId },
+        'reconciliar-llamadas: fallo al reconciliar acepto sin cita — se reintenta en el siguiente barrido',
+      );
+    }
+  }
 }

@@ -16,7 +16,13 @@ const TRANSITIONS: Readonly<Record<LeadStatus, readonly LeadStatus[]>> = {
     'interesado_sin_espacio',
     'listo_llamar', // retry path (no-answer, intentos < 2)
   ],
-  acepto: ['agendado'],
+  acepto: [
+    'agendado',
+    // Reconciliación de acepto sin cita real (book nunca corrió o falló y el
+    // desenlace llegó igual como acepto): se trata como error_tecnico.
+    'listo_llamar',   // reintento (intentos < 2)
+    'no_contactable', // reintentos agotados (intentos >= 2)
+  ],
   // Terminal — no outgoing edges
   agendado: [],
   no_interesado: [],

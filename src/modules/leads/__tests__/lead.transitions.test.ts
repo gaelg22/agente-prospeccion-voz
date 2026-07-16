@@ -15,6 +15,8 @@ describe('validateTransition — legal transitions', () => {
     ['llamado', 'interesado_sin_espacio'],
     ['llamado', 'listo_llamar'], // retry path
     ['acepto', 'agendado'],
+    ['acepto', 'listo_llamar'], // reconciliación: acepto sin cita → reintento
+    ['acepto', 'no_contactable'], // reconciliación: acepto sin cita con reintentos agotados
   ];
 
   for (const [from, to] of legal) {
@@ -30,7 +32,7 @@ describe('validateTransition — illegal transitions', () => {
     ['nuevo', 'agendado'],
     ['enriquecido', 'llamado'],
     ['listo_llamar', 'acepto'],
-    ['acepto', 'listo_llamar'],
+    ['acepto', 'llamado'], // a la cola se vuelve vía listo_llamar, nunca directo
     ['agendado', 'nuevo'],
     ['no_interesado', 'nuevo'],
     ['no_contactable', 'listo_llamar'],

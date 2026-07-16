@@ -163,6 +163,29 @@ describe('LeadService.findNextToCall()', () => {
   });
 });
 
+// ─── Tests: findAceptoSinCita() ───────────────────────────────────────────────
+
+describe('LeadService.findAceptoSinCita()', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('solo barre acepto envejecido SIN cita real — un acepto con googleEventId queda intacto', async () => {
+    const lean = vi.fn().mockResolvedValue([]);
+    const sort = vi.fn().mockReturnValue({ lean });
+    vi.mocked(Lead.find).mockReturnValue({ sort } as never);
+
+    const umbral = new Date('2026-07-16T10:00:00Z');
+    await LeadService.findAceptoSinCita(umbral);
+
+    expect(Lead.find).toHaveBeenCalledWith({
+      status: 'acepto',
+      ultimaLlamada: { $lte: umbral },
+      'cita.googleEventId': { $exists: false },
+    });
+  });
+});
+
 // ─── Tests: normalizePhone (vía LeadService.create) ──────────────────────────
 
 describe('LeadService — normalización de teléfono en create()', () => {

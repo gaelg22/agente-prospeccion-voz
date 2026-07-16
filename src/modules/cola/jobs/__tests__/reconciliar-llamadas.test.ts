@@ -16,6 +16,7 @@ vi.mock('../../../../lib/logger', () => ({
 vi.mock('../../../leads/lead.service', () => ({
   LeadService: {
     findEstancadosEnLlamado: vi.fn(),
+    findAceptoSinCita: vi.fn(),
     transition: vi.fn(),
   },
 }));
@@ -141,6 +142,9 @@ describe('reconciliar-llamadas — leads varados en llamado', () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-11T05:00:00Z'));
+    // El barrido hermano (acepto sin cita) corre en el mismo handler — vacío
+    // por default para que estos tests solo ejerciten el barrido de llamado.
+    vi.mocked(LeadService.findAceptoSinCita).mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -250,5 +254,99 @@ describe('reconciliar-llamadas — leads varados en llamado', () => {
     expect(LeadService.transition).toHaveBeenCalledWith(leadSano._id, 'acepto', {
       nota: expect.stringContaining('reconciliado desde el API de Vapi'),
     });
+  });
+});
+
+// ─── Barrido hermano: leads en acepto sin cita real ──────────────────────────
+
+describe('reconciliar-llamadas — leads en acepto sin cita', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-11T05:00:00Z'));
+    vi.mocked(LeadService.findEstancadosEnLlamado).mockResolvedValue([]);
+    vi.mocked(LeadService.findAceptoSinCita).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function makeLeadAcepto(overrides: Partial<ILead> = {}): ILead {
+    return makeLeadVarado({ status: 'acepto', ...overrides });
+  }
+
+  it('consulta acepto sin cita con el MISMO umbral que el barrido de llamado', async () => {
+    const handler = captureHandler(defineReconciliarLlamadasJob);
+
+    await handler({} as Job);
+
+    expect(LeadService.findAceptoSinCita).toHaveBeenCalledWith(
+      new Date(Date.now() - UMBRAL_VARADO_MINUTOS * 60_000),
+    );
+    expect(LeadService.transition).not.toHaveBeenCalled();
+  });
+
+  it('acepto envejecido sin folio: error_tecnico → listo_llamar con reintento y nota de reconciliación', async () => {
+    const lead = makeLeadAcepto({ intentos: 1 });
+    vi.mocked(LeadService.findAceptoSinCita).mockResolvedValue([lead]);
+    const handler = captureHandler(defineReconciliarLlamadasJob);
+
+    await handler({} as Job);
+
+    expect(LeadService.transition).toHaveBeenCalledWith(lead._id, 'listo_llamar', {
+      nota: expect.stringContaining('reconciliado: acepto sin cita'),
+    });
+    expect(ColaService.scheduleRetry).toHaveBeenCalledWith(
+      lead._id.toString(),
+      lead.ultimaLlamada,
+    );
+    // No consulta Vapi: el desenlace ya se conoce (aceptó), solo faltó la cita.
+    expect(getCallMock).not.toHaveBeenCalled();
+  });
+
+  it('acepto sin folio con reintentos agotados (intentos=2): → no_contactable sin retry', async () => {
+    const lead = makeLeadAcepto({ intentos: 2 });
+    vi.mocked(LeadService.findAceptoSinCita).mockResolvedValue([lead]);
+    const handler = captureHandler(defineReconciliarLlamadasJob);
+
+    await handler({} as Job);
+
+    expect(LeadService.transition).toHaveBeenCalledWith(lead._id, 'no_contactable', {
+      nota: expect.stringContaining('reconciliado: acepto sin cita'),
+    });
+    expect(ColaService.scheduleRetry).not.toHaveBeenCalled();
+  });
+
+  it('acepto CON cita real queda intacto: el query lo excluye y el barrido no lo toca', async () => {
+    // findAceptoSinCita filtra por cita.googleEventId ausente (ver
+    // lead.service.test): un acepto con cita jamás llega al barrido.
+    vi.mocked(LeadService.findAceptoSinCita).mockResolvedValue([]);
+    const handler = captureHandler(defineReconciliarLlamadasJob);
+
+    await handler({} as Job);
+
+    expect(LeadService.transition).not.toHaveBeenCalled();
+    expect(ColaService.scheduleRetry).not.toHaveBeenCalled();
+  });
+
+  it('un fallo con un lead no frena el barrido de los demás', async () => {
+    const leadRoto = makeLeadAcepto({ intentos: 1 });
+    const leadSano = makeLeadAcepto({ intentos: 1 });
+    vi.mocked(LeadService.findAceptoSinCita).mockResolvedValue([leadRoto, leadSano]);
+    vi.mocked(LeadService.transition).mockImplementation((id: unknown) => {
+      if (id === leadRoto._id) return Promise.reject(new Error('Mongo caído'));
+      return Promise.resolve({} as never);
+    });
+    const handler = captureHandler(defineReconciliarLlamadasJob);
+
+    await handler({} as Job);
+
+    expect(LeadService.transition).toHaveBeenCalledTimes(2);
+    expect(ColaService.scheduleRetry).toHaveBeenCalledTimes(1);
+    expect(ColaService.scheduleRetry).toHaveBeenCalledWith(
+      leadSano._id.toString(),
+      leadSano.ultimaLlamada,
+    );
   });
 });
