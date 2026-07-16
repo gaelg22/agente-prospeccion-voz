@@ -22,7 +22,25 @@ export function buildApp(): express.Application {
   const app = express();
 
   // ── Request logging ───────────────────────────────────────────────────────
-  app.use(pinoHttp({ logger }));
+  // redact: evita que secretos aparezcan en claro en los logs.
+  // Los paths siguen la notación de pino-redact (fast-redact):
+  //   req.headers.*  cubre todos los requests entrantes.
+  // Agregar aquí cualquier header sensible nuevo que se incorpore al proyecto.
+  app.use(
+    pinoHttp({
+      logger,
+      redact: {
+        paths: [
+          'req.headers["x-api-key"]',
+          'req.headers["authorization"]',
+          'req.headers["x-vapi-secret"]',
+          'req.headers["x-kapso-api-key"]',
+          'req.headers["x-vapi-signature"]',
+        ],
+        censor: '[Redacted]',
+      },
+    }),
+  );
 
   // ── Body parsers ──────────────────────────────────────────────────────────
   // El payload de call-ended de Vapi incluye la transcripción completa

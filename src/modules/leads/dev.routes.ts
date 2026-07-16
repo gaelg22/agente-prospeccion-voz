@@ -4,12 +4,19 @@ import { LeadService } from '../leads/lead.service';
 import { Lead } from '../leads/lead.schema';
 import { VapiClient } from '../agente-voz/vapi.client';
 import { logger } from '../../lib/logger';
+import { apiKeyMiddleware } from '../../middleware/apiKey.middleware';
 
 /**
  * Rutas de desarrollo — solo activas fuera de producción.
  * NUNCA exportar ni registrar estas rutas cuando NODE_ENV === 'production'.
  */
 export const devRoutes = Router();
+
+// Requiere la misma x-api-key que el resto de rutas de admin.
+// El router ya está restringido a NODE_ENV !== 'production' en server.ts;
+// esta capa evita que alguien con acceso al túnel ejecute llamadas de prueba
+// sin credencial.
+devRoutes.use(apiKeyMiddleware);
 
 // ─── POST /dev/leads ──────────────────────────────────────────────────────────
 // Inserta un lead de prueba con datos mínimos.
