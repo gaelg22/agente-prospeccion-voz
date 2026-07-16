@@ -1,5 +1,4 @@
-import Agenda from 'agenda';
-import mongoose from 'mongoose';
+import Agenda, { Job } from 'agenda';
 import { config } from '../../config';
 import { logger } from '../../lib/logger';
 
@@ -31,10 +30,10 @@ export async function startAgenda(): Promise<Agenda> {
   defineReconciliarLlamadasJob(agendaInstance);
 
   agendaInstance.on('error', (err: Error) => logger.error({ err }, 'Agenda error'));
-  agendaInstance.on('start', (job) => logger.debug({ jobName: job.attrs.name }, 'Job started'));
-  agendaInstance.on('success', (job) => logger.debug({ jobName: job.attrs.name }, 'Job succeeded'));
-  agendaInstance.on('fail', (err: Error, job) =>
-    logger.error({ err, jobName: job.attrs.name, jobId: job.attrs._id }, 'Job failed'),
+  agendaInstance.on('start', (job: Job) => logger.debug({ jobName: job.attrs.name }, 'Job started'));
+  agendaInstance.on('success', (job: Job) => logger.debug({ jobName: job.attrs.name }, 'Job succeeded'));
+  agendaInstance.on('fail', (err: Error, job: Job) =>
+    logger.error({ err, jobName: job.attrs.name, jobId: String(job.attrs._id) }, 'Job failed'),
   );
 
   await agendaInstance.start();

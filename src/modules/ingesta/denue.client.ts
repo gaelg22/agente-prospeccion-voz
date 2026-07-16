@@ -33,7 +33,7 @@ async function fetchWithRetry(client: AxiosInstance, url: string): Promise<unkno
   let attempt = 0;
   while (attempt < MAX_RETRIES) {
     try {
-      const { data } = await client.get<unknown>(url);
+      const { data } = await client.get<unknown[]>(url);
       if (!Array.isArray(data)) return [];
       return data;
     } catch (err) {

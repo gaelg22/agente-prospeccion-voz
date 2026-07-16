@@ -36,7 +36,7 @@ export function defineReintentoJob(agenda: Agenda): void {
 
     if (!isInCallingWindow()) {
       // Reschedule 30 min later and try again
-      await job.schedule('in 30 minutes');
+      job.schedule('in 30 minutes');
       await job.save();
       logger.debug({ leadId }, 'Outside window — rescheduled reintento');
       return;

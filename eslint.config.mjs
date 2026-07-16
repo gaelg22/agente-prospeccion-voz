@@ -17,8 +17,13 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
       // No usar console — usar pino
       'no-console': ['error', { allow: ['error', 'warn'] }],
-      // Promises siempre manejadas
+      // Promises siempre manejadas — excepto callbacks de Express (req,res,next)=>void
+      // donde el async es el patrón idiomático y el error se propaga vía next().
       '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        { checksVoidReturn: { arguments: false } },
+      ],
       // No variables sin usar
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       // Siempre usar tipos explícitos en funciones públicas
@@ -38,6 +43,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', 'vitest.config.ts'],
+    ignores: ['dist/**', 'node_modules/**', 'vitest.config.ts', 'src/**/__tests__/**'],
   },
 );
