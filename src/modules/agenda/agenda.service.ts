@@ -88,6 +88,16 @@ export class AgendaService {
 
     logger.info({ leadId: String(leadId), slotIso, modalidad }, 'Booking calendar slot');
 
+    // ── A4: Rechazo de slots en el pasado ──────────────────────────────────────
+    // getAvailableSlots no compara contra "ahora": para una fecha pasada dentro
+    // de la ventana devolvería el hueco como libre y se crearía un evento en el
+    // pasado. startDate ya interpreta slotIso en hora de México (-06:00, fija
+    // desde que CDMX abolió el DST). Se rechaza antes de consultar Calendar.
+    if (startDate.getTime() <= Date.now()) {
+      logger.warn({ leadId: String(leadId), slotIso }, 'Slot en el pasado — rechazado sin consultar Calendar');
+      throw new SlotNoDisponibleError(slotIso);
+    }
+
     // ── A4: Revalidación justo antes de crear el evento ───────────────────────
     // El LLM eligió este slot durante verificar_disponibilidad, pero puede haber
     // pasado tiempo desde entonces. Se consulta Calendar de nuevo para asegurarse

@@ -164,6 +164,19 @@ describe('AgendaService.book — A4: revalidación de disponibilidad', () => {
     expect(mockLeadService.transition).not.toHaveBeenCalled();
   });
 
+  it('slot en el pasado dentro de ventana: SlotNoDisponibleError sin consultar Calendar', async () => {
+    // 2026-07-14 fue martes (ventana 10-20); a la hora en que corra este test
+    // esa fecha siempre estará en el pasado. Sin busySlots, la revalidación
+    // normal lo daría por libre — el rechazo debe ocurrir ANTES.
+    const { agenda, createEvent, getBusySlots } = setup([]);
+
+    const { SlotNoDisponibleError } = await import('../agenda.service');
+    await expect(agenda.book('lead-1', '2026-07-14T17:00:00')).rejects.toThrow(SlotNoDisponibleError);
+    expect(getBusySlots).not.toHaveBeenCalled();
+    expect(createEvent).not.toHaveBeenCalled();
+    expect(mockLeadService.transition).not.toHaveBeenCalled();
+  });
+
   it('slot ocupado: el mensaje de error incluye el slotIso pedido', async () => {
     const busySlots = [
       { start: '2026-08-03T23:00:00Z', end: '2026-08-04T00:00:00Z' },
