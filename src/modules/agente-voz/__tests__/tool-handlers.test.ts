@@ -27,7 +27,30 @@ const mockColaService = vi.hoisted(() => ({
 }));
 vi.mock('../../cola/cola.service', () => ({ ColaService: mockColaService }));
 
-import { handleRegistrarResultado } from '../tool-handlers';
+// Modelo Lead: solo se usa updateOne (flag DNC y notas de agendar_cita).
+// Se preserva el resto del módulo (TERMINAL_STATUSES etc. vía lead.transitions).
+const mockLeadModel = vi.hoisted(() => ({
+  updateOne: vi.fn(),
+}));
+vi.mock('../../leads/lead.schema', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../leads/lead.schema')>();
+  return { ...original, Lead: mockLeadModel };
+});
+
+// AgendaService.book — se mockea para simular éxito/fallo de Calendar.
+const mockBook = vi.hoisted(() => vi.fn());
+vi.mock('../../agenda/agenda.service', () => ({
+  AgendaService: class {
+    book = mockBook;
+  },
+}));
+
+import {
+  handleRegistrarResultado,
+  handleMarcarNoContactar,
+  handleAgendarCita,
+} from '../tool-handlers';
+import { InvalidTransitionError } from '../../leads/lead.transitions';
 import type { VapiToolCall } from '../vapi.zod';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -39,6 +62,28 @@ function toolCallRegistrar(desenlace: string, notas?: string): VapiToolCall {
     function: {
       name: 'registrar_resultado',
       arguments: notas ? { desenlace, notas } : { desenlace },
+    },
+  } as VapiToolCall;
+}
+
+function toolCallAgendar(): VapiToolCall {
+  return {
+    id: 'tc-agendar-01',
+    type: 'function',
+    function: {
+      name: 'agendar_cita',
+      arguments: { fecha: '2026-08-03', hora: '17:00', modalidad: 'virtual' },
+    },
+  } as VapiToolCall;
+}
+
+function toolCallDnc(motivo?: string): VapiToolCall {
+  return {
+    id: 'tc-dnc-01',
+    type: 'function',
+    function: {
+      name: 'marcar_no_contactar',
+      arguments: motivo ? { motivo } : {},
     },
   } as VapiToolCall;
 }
@@ -110,6 +155,146 @@ describe('handleRegistrarResultado — idempotencia con lead ya terminal', () =>
       'lead-123',
       'no_interesado',
       expect.objectContaining({ nota: expect.stringContaining('no interesado') }),
+    );
+  });
+});
+
+// ─── Tests C1: fallo de book() no vara al lead en acepto ─────────────────────
+
+describe('handleAgendarCita — C1: fallo de Calendar deja al lead recuperable', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLeadModel.updateOne.mockResolvedValue({});
+  });
+
+  it('flujo compuesto: acepto interés → book falla → error_tecnico → lead recuperable', async () => {
+    // Lead en 'llamado' (aceptó durante la llamada); Calendar caído.
+    const lead = { _id: 'lead-123', status: 'llamado', intentos: 1, ultimaLlamada: new Date() };
+    mockLeadService.findById.mockResolvedValue(lead);
+    mockBook.mockRejectedValue(new Error('Calendar API no disponible'));
+
+    // 1. agendar_cita falla
+    const resAgendar = await handleAgendarCita(toolCallAgendar(), CTX);
+    const bodyAgendar = JSON.parse(resAgendar.result) as { ok: boolean; error: string };
+    expect(bodyAgendar.ok).toBe(false);
+
+    // El handler NO transiciona a 'acepto' por su cuenta — eso ocurre dentro
+    // de book() solo después de crear el evento. El lead sigue en 'llamado'.
+    expect(mockLeadService.transition).not.toHaveBeenCalled();
+
+    // 2. El agente cierra con registrar_resultado(error_tecnico) en la misma
+    //    llamada: el lead va a listo_llamar con reintento programado.
+    mockLeadService.transition.mockResolvedValue({});
+    const resRegistrar = await handleRegistrarResultado(toolCallRegistrar('error_tecnico'), CTX);
+    const bodyRegistrar = JSON.parse(resRegistrar.result) as {
+      ok: boolean;
+      nuevoStatus: string;
+      debeReintentar: boolean;
+    };
+
+    expect(bodyRegistrar.ok).toBe(true);
+    expect(bodyRegistrar.nuevoStatus).toBe('listo_llamar');
+    expect(bodyRegistrar.debeReintentar).toBe(true);
+    expect(mockLeadService.transition).toHaveBeenCalledWith(
+      'lead-123',
+      'listo_llamar',
+      expect.anything(),
+    );
+    expect(mockColaService.scheduleRetry).toHaveBeenCalledWith('lead-123', expect.any(Date));
+  });
+
+  it('book exitoso desde llamado: el handler delega la transición a book() y devuelve folio', async () => {
+    mockLeadService.findById
+      .mockResolvedValueOnce({ _id: 'lead-123', status: 'llamado' })
+      .mockResolvedValueOnce({
+        _id: 'lead-123',
+        status: 'agendado',
+        cita: { googleEventId: 'evt-9', meetUrl: null },
+      });
+    mockBook.mockResolvedValue(undefined);
+
+    const res = await handleAgendarCita(toolCallAgendar(), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean; folio: string };
+
+    expect(body.ok).toBe(true);
+    expect(body.folio).toBe('evt-9');
+    expect(mockBook).toHaveBeenCalledWith('lead-123', '2026-08-03T17:00:00', 'virtual');
+    // Toda transición vive en book(); el handler no toca la máquina de estados.
+    expect(mockLeadService.transition).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Tests A3: DNC forzoso que nunca falla ────────────────────────────────────
+
+describe('handleMarcarNoContactar — A3: DNC forzoso', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLeadModel.updateOne.mockResolvedValue({});
+  });
+
+  it('desde llamado: transiciona a no_contactar y persiste flag + nota', async () => {
+    mockLeadService.findById.mockResolvedValue({ _id: 'lead-123', status: 'llamado' });
+    mockLeadService.transition.mockResolvedValue({ status: 'no_contactar' });
+
+    const res = await handleMarcarNoContactar(toolCallDnc('no quiere seguros'), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean; status: string; noContactar: boolean };
+
+    expect(body.ok).toBe(true);
+    expect(body.status).toBe('no_contactar');
+    expect(body.noContactar).toBe(true);
+    expect(mockLeadModel.updateOne).toHaveBeenCalledWith(
+      { _id: 'lead-123' },
+      { $set: { noContactar: true }, $push: { notas: 'DNC solicitado: no quiere seguros' } },
+    );
+  });
+
+  it('desde acepto (transición ilegal): idempotente, flag persistido, responde ok', async () => {
+    mockLeadService.findById.mockResolvedValue({ _id: 'lead-123', status: 'acepto' });
+    mockLeadService.transition.mockRejectedValue(
+      new InvalidTransitionError('acepto', 'no_contactar'),
+    );
+
+    const res = await handleMarcarNoContactar(toolCallDnc(), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean; status: string; noContactar: boolean };
+
+    expect(body.ok).toBe(true);
+    expect(body.status).toBe('acepto');
+    expect(body.noContactar).toBe(true);
+    expect(mockLeadModel.updateOne).toHaveBeenCalledWith(
+      { _id: 'lead-123' },
+      expect.objectContaining({ $set: { noContactar: true } }),
+    );
+  });
+
+  it('desde terminal (agendado): idempotente, flag persistido, responde ok', async () => {
+    mockLeadService.findById.mockResolvedValue({ _id: 'lead-123', status: 'agendado' });
+    mockLeadService.transition.mockRejectedValue(
+      new InvalidTransitionError('agendado', 'no_contactar'),
+    );
+
+    const res = await handleMarcarNoContactar(toolCallDnc(), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean; status: string; noContactar: boolean };
+
+    expect(body.ok).toBe(true);
+    expect(body.status).toBe('agendado');
+    expect(body.noContactar).toBe(true);
+    expect(mockLeadModel.updateOne).toHaveBeenCalled();
+  });
+
+  it('ya en no_contactar: no reintenta la transición y responde ok', async () => {
+    mockLeadService.findById.mockResolvedValue({ _id: 'lead-123', status: 'no_contactar' });
+
+    const res = await handleMarcarNoContactar(toolCallDnc(), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean; status: string; noContactar: boolean };
+
+    expect(body.ok).toBe(true);
+    expect(body.status).toBe('no_contactar');
+    expect(body.noContactar).toBe(true);
+    expect(mockLeadService.transition).not.toHaveBeenCalled();
+    // El flag se persiste de todas formas — marca inequívoca.
+    expect(mockLeadModel.updateOne).toHaveBeenCalledWith(
+      { _id: 'lead-123' },
+      expect.objectContaining({ $set: { noContactar: true } }),
     );
   });
 });

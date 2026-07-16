@@ -141,6 +141,28 @@ describe('LeadService.transition()', () => {
   });
 });
 
+// ─── Tests: findNextToCall() ──────────────────────────────────────────────────
+
+describe('LeadService.findNextToCall()', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('excluye leads con flag noContactar aunque estén en listo_llamar', async () => {
+    const lean = vi.fn().mockResolvedValue(null);
+    const sort = vi.fn().mockReturnValue({ lean });
+    vi.mocked(Lead.findOne).mockReturnValue({ sort } as never);
+
+    await LeadService.findNextToCall();
+
+    expect(Lead.findOne).toHaveBeenCalledWith({
+      status: 'listo_llamar',
+      telefono: { $type: 'string' },
+      noContactar: { $ne: true },
+    });
+  });
+});
+
 // ─── Tests: normalizePhone (vía LeadService.create) ──────────────────────────
 
 describe('LeadService — normalización de teléfono en create()', () => {

@@ -19,11 +19,17 @@ export class AgendaService {
   }
 
   /**
-   * Books a calendar slot for a lead that has accepted (status=acepto).
-   * La duración depende de la modalidad: virtual = 1 h, presencial = 2 h
-   * (1 h de cita + 1 h de traslado del asesor). El link de Meet solo se pide en
-   * modalidad virtual. Transitions lead to `agendado` and sends WhatsApp
-   * confirmation. This is the TERMINAL action — the lead cycle ends here.
+   * Books a calendar slot for a lead in `llamado` (aceptó durante la llamada)
+   * o `acepto`. La duración depende de la modalidad: virtual = 1 h,
+   * presencial = 2 h (1 h de cita + 1 h de traslado del asesor). El link de
+   * Meet solo se pide en modalidad virtual. Transitions lead to `agendado`
+   * and sends WhatsApp confirmation. This is the TERMINAL action — the lead
+   * cycle ends here.
+   *
+   * La máquina de estados solo avanza DESPUÉS de crear el evento en Calendar:
+   * si Calendar falla, el lead se queda en su status actual. En `llamado`
+   * sigue siendo recuperable (registrar_resultado(error_tecnico) → reintento,
+   * o barrido de reconciliación); no queda varado en `acepto`.
    *
    * @param leadId The lead's MongoDB ObjectId or string
    * @param slotIso ISO datetime string for the slot start (e.g. "2025-08-01T10:00:00")
@@ -37,8 +43,8 @@ export class AgendaService {
     const lead = await LeadService.findById(String(leadId));
     if (!lead) throw new Error(`Lead not found: ${String(leadId)}`);
 
-    if (lead.status !== 'acepto') {
-      throw new Error(`Lead must be in 'acepto' status to book. Current: ${lead.status}`);
+    if (lead.status !== 'acepto' && lead.status !== 'llamado') {
+      throw new Error(`Lead must be in 'llamado' or 'acepto' status to book. Current: ${lead.status}`);
     }
 
     const duracion = duracionHoras(modalidad);
@@ -80,6 +86,15 @@ export class AgendaService {
       // Presencial no lleva Meet.
       withMeet: !esPresencial,
     });
+
+    // El evento ya existe en Calendar — solo ahora se avanza la máquina de
+    // estados. Si el lead venía de 'llamado' se pasa primero por 'acepto'
+    // (único edge legal hacia 'agendado').
+    if (lead.status === 'llamado') {
+      await LeadService.transition(lead._id, 'acepto', {
+        nota: 'Aceptó durante la llamada — confirmado al crear la cita',
+      });
+    }
 
     // Transition to agendado — terminal status
     await LeadService.transition(lead._id, 'agendado', {

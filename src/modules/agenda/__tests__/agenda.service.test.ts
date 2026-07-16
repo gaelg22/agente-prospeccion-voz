@@ -67,3 +67,62 @@ describe('AgendaService.book — duración del evento por modalidad', () => {
     expect(sendBookingConfirmation.mock.calls[0]?.[1]).toMatchObject({ modalidad: 'presencial' });
   });
 });
+
+// ─── C1: la máquina de estados solo avanza tras crear el evento en Calendar ──
+
+describe('AgendaService.book — transición de status solo tras Calendar exitoso', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLeadService.transition.mockResolvedValue({});
+  });
+
+  it('desde llamado: transiciona llamado→acepto→agendado en ese orden', async () => {
+    mockLeadService.findById.mockResolvedValue({ ...leadAcepto, status: 'llamado' });
+    const { agenda } = setup();
+
+    await agenda.book('lead-1', '2026-08-03T17:00:00');
+
+    expect(mockLeadService.transition).toHaveBeenNthCalledWith(
+      1,
+      'lead-1',
+      'acepto',
+      expect.objectContaining({ nota: expect.stringContaining('Aceptó') }),
+    );
+    expect(mockLeadService.transition).toHaveBeenNthCalledWith(
+      2,
+      'lead-1',
+      'agendado',
+      expect.objectContaining({ cita: expect.objectContaining({ googleEventId: 'evt-1' }) }),
+    );
+  });
+
+  it('si Calendar falla, NO hay ninguna transición — el lead sigue en llamado', async () => {
+    mockLeadService.findById.mockResolvedValue({ ...leadAcepto, status: 'llamado' });
+    const { agenda, createEvent } = setup();
+    createEvent.mockRejectedValue(new Error('Calendar caído'));
+
+    await expect(agenda.book('lead-1', '2026-08-03T17:00:00')).rejects.toThrow('Calendar caído');
+    expect(mockLeadService.transition).not.toHaveBeenCalled();
+  });
+
+  it('desde acepto: transiciona directo a agendado sin paso intermedio', async () => {
+    mockLeadService.findById.mockResolvedValue(leadAcepto);
+    const { agenda } = setup();
+
+    await agenda.book('lead-1', '2026-08-03T17:00:00');
+
+    expect(mockLeadService.transition).toHaveBeenCalledTimes(1);
+    expect(mockLeadService.transition).toHaveBeenCalledWith('lead-1', 'agendado', expect.anything());
+  });
+
+  it('rechaza estados distintos de llamado/acepto sin tocar Calendar ni status', async () => {
+    mockLeadService.findById.mockResolvedValue({ ...leadAcepto, status: 'listo_llamar' });
+    const { agenda, createEvent } = setup();
+
+    await expect(agenda.book('lead-1', '2026-08-03T17:00:00')).rejects.toThrow(
+      /must be in 'llamado' or 'acepto'/,
+    );
+    expect(createEvent).not.toHaveBeenCalled();
+    expect(mockLeadService.transition).not.toHaveBeenCalled();
+  });
+});

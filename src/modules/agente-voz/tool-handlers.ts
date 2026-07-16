@@ -1,6 +1,7 @@
 import { logger } from '../../lib/logger';
 import { LeadService } from '../leads/lead.service';
-import { isTerminal } from '../leads/lead.transitions';
+import { Lead } from '../leads/lead.schema';
+import { isTerminal, InvalidTransitionError } from '../leads/lead.transitions';
 import { ColaService } from '../cola/cola.service';
 import { mapearDesenlace } from './call-outcome.handler';
 import { AgendaService } from '../agenda/agenda.service';
@@ -109,15 +110,38 @@ export const handleMarcarNoContactar: ToolHandler = async (toolCall, ctx) => {
     return { toolCallId: toolCall.id, result: JSON.stringify({ ok: false, error: 'Lead no encontrado' }) };
   }
 
-  await LeadService.transition(lead._id, 'no_contactar', {
-    nota: motivo ? `DNC solicitado: ${motivo}` : 'DNC — solicitado por el lead durante la llamada',
-  });
+  // Marca inequívoca e incondicional: el flag noContactar + la nota se
+  // persisten SIEMPRE, aunque el status actual no admita la transición.
+  // findNextToCall excluye cualquier lead con este flag, esté donde esté.
+  const notaDnc = motivo ? `DNC solicitado: ${motivo}` : 'DNC — solicitado por el lead durante la llamada';
+  await Lead.updateOne({ _id: lead._id }, { $set: { noContactar: true }, $push: { notas: notaDnc } });
 
-  logger.info({ leadId }, 'marcar_no_contactar: lead marcado como DNC');
+  let statusFinal = lead.status;
+  if (lead.status !== 'no_contactar') {
+    try {
+      const updated = await LeadService.transition(lead._id, 'no_contactar');
+      statusFinal = updated.status;
+    } catch (err) {
+      if (err instanceof InvalidTransitionError) {
+        // Idempotente: desde este status (terminal, acepto…) la transición no
+        // aplica. El flag DNC ya quedó persistido — el lead no volverá a marcarse.
+        logger.info(
+          { leadId, status: lead.status },
+          'marcar_no_contactar: transición no aplicable desde status actual — flag DNC persistido sin cambio de status',
+        );
+      } else {
+        // El flag ya está persistido: cualquier otro error en la transición
+        // no debe hacer fallar la tool ni revertir el DNC.
+        logger.error({ err, leadId }, 'marcar_no_contactar: error en transición — flag DNC ya persistido');
+      }
+    }
+  }
+
+  logger.info({ leadId, status: statusFinal }, 'marcar_no_contactar: lead marcado como DNC');
 
   return {
     toolCallId: toolCall.id,
-    result: JSON.stringify({ ok: true, status: 'no_contactar' }),
+    result: JSON.stringify({ ok: true, status: statusFinal, noContactar: true }),
   };
 };
 
@@ -181,14 +205,11 @@ export const handleAgendarCita: ToolHandler = async (toolCall, ctx) => {
       };
     }
 
-    // Si el lead aún está en 'llamado' (la tool se ejecuta antes o sin que
-    // registrar_resultado haya corrido), se transiciona a 'acepto' primero.
-    // AgendaService.book() requiere que el lead esté en 'acepto'.
-    if (lead.status === 'llamado') {
-      await LeadService.transition(lead._id, 'acepto', {
-        nota: 'Aceptó durante la llamada — transición automática antes de agendar',
-      });
-    } else if (lead.status !== 'acepto') {
+    // La transición llamado→acepto ocurre DENTRO de book(), solo después de
+    // que el evento de Calendar se creó. Si Calendar falla, el lead permanece
+    // en 'llamado' y sigue recuperable (reintento vía error_tecnico o barrido
+    // de reconciliación) — no queda varado en 'acepto'.
+    if (lead.status !== 'llamado' && lead.status !== 'acepto') {
       return {
         toolCallId: toolCall.id,
         result: JSON.stringify({
@@ -203,7 +224,6 @@ export const handleAgendarCita: ToolHandler = async (toolCall, ctx) => {
 
     // Guardar notas directamente sin cambiar el estado (evita transición acepto→acepto ilegal)
     if (notas) {
-      const { Lead } = await import('../leads/lead.schema');
       await Lead.updateOne({ _id: lead._id }, { $push: { notas: `Notas llamada: ${notas}` } }).catch(
         () => null,
       );

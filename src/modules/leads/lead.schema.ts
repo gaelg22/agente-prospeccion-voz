@@ -69,6 +69,7 @@ export interface ILead {
 
   // Pipeline / máquina de estados
   status: LeadStatus;
+  noContactar: boolean;          // DNC forzoso — excluye al lead de toda marcación futura, sin importar el status
   intentos: number;              // nº de llamadas realizadas (0, 1, 2)
   ultimaLlamada?: Date;
   vapiCallId?: string;           // ID de la llamada en Vapi
@@ -144,6 +145,7 @@ const leadSchema = new Schema<ILead>(
       required: true,
       default: 'nuevo',
     },
+    noContactar: { type: Boolean, required: true, default: false },
     intentos: { type: Number, required: true, default: 0, min: 0, max: 2 },
     ultimaLlamada: Date,
     vapiCallId: String,
