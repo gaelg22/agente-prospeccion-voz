@@ -22,6 +22,7 @@ const mockConfig = vi.hoisted(() => ({
   VAPI_VOICE_BOOST: true,
   VAPI_TRANSCRIBER_MODEL: 'nova-2',
   VAPI_TRANSCRIBER_LANGUAGE: 'es-419',
+  HORARIO_SEMANAL: '-,10-20,10-20,10-20,10-20,10-20,8-12',
 }));
 
 vi.mock('../../../config', () => ({ config: mockConfig }));
@@ -214,6 +215,25 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(systemPrompt).toContain(mockConfig.AGENTE_NOMBRE);
     expect(systemPrompt).toContain(mockConfig.EMPRESA_NOMBRE);
     expect(systemPrompt).toContain(mockConfig.TELEFONO_OFICIAL);
+  });
+
+  it('el horario de atención sale de HORARIO_SEMANAL, no de texto hardcodeado', async () => {
+    // Con el HORARIO_SEMANAL default del mock:
+    expect(systemPrompt).toContain(
+      'lunes–viernes 10:00–20:00, sábado 08:00–12:00; domingo inhábil',
+    );
+
+    // Cambiar la env cambia lo que dice el prompt:
+    vi.resetModules();
+    vi.doMock('../../../config', () => ({
+      config: { ...mockConfig, HORARIO_SEMANAL: '-,9-17,9-17,9-17,9-17,9-17,-' },
+    }));
+    const mod = await import('../assistant.config');
+    expect(mod.systemPrompt).toContain('lunes–viernes 09:00–17:00; sábado–domingo inhábil');
+    expect(mod.systemPrompt).not.toContain('10:00–20:00');
+
+    vi.doUnmock('../../../config');
+    vi.resetModules();
   });
 
   it('no incluye el encabezado instructivo del documento', () => {

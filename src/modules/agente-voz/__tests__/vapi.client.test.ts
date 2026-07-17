@@ -16,6 +16,7 @@ vi.mock('../../../config', () => ({
     AGENTE_NOMBRE: 'Sofía',
     EMPRESA_NOMBRE: 'Seguros Test S.A.',
     TELEFONO_OFICIAL: '55 1234 5678',
+    HORARIO_SEMANAL: '-,10-20,10-20,10-20,10-20,10-20,8-12',
   },
 }));
 
@@ -134,6 +135,7 @@ describe('buildOutboundCallPayload — validaciones', () => {
         AGENTE_NOMBRE: 'Sofía',
         EMPRESA_NOMBRE: 'Seguros Test S.A.',
         TELEFONO_OFICIAL: '55 1234 5678',
+        HORARIO_SEMANAL: '-,10-20,10-20,10-20,10-20,10-20,8-12',
       },
     }));
 

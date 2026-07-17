@@ -63,6 +63,46 @@ const DOW_MAP: Record<string, number> = {
   Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
 };
 
+const DIAS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'] as const;
+
+/**
+ * Frase en español del horario semanal para el system prompt, generada de la
+ * MISMA tabla que gobierna llamadas y slots — si cambia HORARIO_SEMANAL,
+ * cambia lo que Sofía recita. Agrupa días consecutivos con la misma ventana,
+ * lunes primero y los inhábiles al final tras punto y coma.
+ * Default: "lunes–viernes 10:00–20:00, sábado 08:00–12:00; domingo inhábil".
+ */
+export function describirHorarioSemanal(): string {
+  tabla ??= parseHorario(config.HORARIO_SEMANAL);
+
+  const clave = (w: DayWindow | null): string => (w ? `${w.open}-${w.close}` : '-');
+  const hh = (h: number): string => `${String(h).padStart(2, '0')}:00`;
+
+  interface Grupo { desde: number; hasta: number; window: DayWindow | null }
+  const grupos: Grupo[] = [];
+  for (const dow of [1, 2, 3, 4, 5, 6, 0]) { // lunes … sábado, domingo al final
+    const window = tabla[dow] ?? null;
+    const previo = grupos[grupos.length - 1];
+    if (previo && clave(previo.window) === clave(window)) {
+      previo.hasta = dow;
+    } else {
+      grupos.push({ desde: dow, hasta: dow, window });
+    }
+  }
+
+  const etiqueta = (g: Grupo): string =>
+    g.desde === g.hasta ? DIAS_ES[g.desde] as string : `${DIAS_ES[g.desde]}–${DIAS_ES[g.hasta]}`;
+
+  const habiles = grupos
+    .filter((g): g is Grupo & { window: DayWindow } => g.window !== null)
+    .map((g) => `${etiqueta(g)} ${hh(g.window.open)}–${hh(g.window.close)}`);
+  const inhabiles = grupos.filter((g) => g.window === null).map((g) => `${etiqueta(g)} inhábil`);
+
+  if (habiles.length === 0) return inhabiles.join(', ');
+  if (inhabiles.length === 0) return habiles.join(', ');
+  return `${habiles.join(', ')}; ${inhabiles.join(', ')}`;
+}
+
 /**
  * Ventana para una fecha ISO (YYYY-MM-DD) evaluada en America/Mexico_City,
  * o null si ese día es inhábil.

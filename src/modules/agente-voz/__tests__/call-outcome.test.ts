@@ -10,6 +10,7 @@ vi.mock('../../../config', () => ({
     EMPRESA_NOMBRE: 'Seguros Test S.A.',
     TELEFONO_OFICIAL: '55 1234 5678',
     VAPI_LLM_MODEL: 'claude-sonnet-4-5-20250929',
+    HORARIO_SEMANAL: '-,10-20,10-20,10-20,10-20,10-20,8-12',
   },
 }));
 

@@ -43,6 +43,27 @@ describe('getWindowForDayIso — fecha ISO evaluada en MX', () => {
   });
 });
 
+describe('describirHorarioSemanal — frase para el system prompt', () => {
+  it('default: agrupa L–V, sábado aparte y el inhábil al final tras punto y coma', async () => {
+    const { describirHorarioSemanal } = await cargarHorario(DEFAULT);
+    expect(describirHorarioSemanal()).toBe(
+      'lunes–viernes 10:00–20:00, sábado 08:00–12:00; domingo inhábil',
+    );
+  });
+
+  it('cambiar HORARIO_SEMANAL cambia la frase (domingo hábil, sábado inhábil)', async () => {
+    const { describirHorarioSemanal } = await cargarHorario('9-13,11-19,11-19,11-19,11-19,11-19,-');
+    expect(describirHorarioSemanal()).toBe(
+      'lunes–viernes 11:00–19:00, domingo 09:00–13:00; sábado inhábil',
+    );
+  });
+
+  it('días inhábiles consecutivos se agrupan (sábado–domingo)', async () => {
+    const { describirHorarioSemanal } = await cargarHorario('-,9-17,9-17,9-17,9-17,9-17,-');
+    expect(describirHorarioSemanal()).toBe('lunes–viernes 09:00–17:00; sábado–domingo inhábil');
+  });
+});
+
 describe('HORARIO_SEMANAL configurable por env', () => {
   it('una tabla custom (domingo hábil, sábado inhábil) se respeta', async () => {
     const { getWindowForDow } = await cargarHorario('9-13,11-19,11-19,11-19,11-19,11-19,-');

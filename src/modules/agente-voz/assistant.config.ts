@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import path from 'path';
 import { config } from '../../config';
+import { describirHorarioSemanal } from '../../lib/horario';
 import { MODALIDADES } from '../agenda/modalidad';
 
 // ─── Tipos de tools de Vapi ───────────────────────────────────────────────────
@@ -314,6 +315,9 @@ function cargarSystemPrompt(): string {
     '[NOMBRE_AGENTE]': config.AGENTE_NOMBRE,
     '[NOMBRE_EMPRESA/ASESOR]': config.EMPRESA_NOMBRE,
     '[TELEFONO_OFICIAL / CANAL_OFICIAL]': config.TELEFONO_OFICIAL,
+    // Horario generado de la misma tabla que gobierna slots y ventana de
+    // llamadas (env HORARIO_SEMANAL) — el prompt nunca recita un horario viejo.
+    '[HORARIO_ATENCION]': describirHorarioSemanal(),
   };
 
   let prompt = cuerpo;
