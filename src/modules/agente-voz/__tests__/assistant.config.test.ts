@@ -329,6 +329,15 @@ describe('buildAssistant — assistant transient completo', () => {
     expect(assistant.model.messages).toEqual([{ role: 'system', content: systemPrompt }]);
   });
 
+  it('declara serverMessages: default de Vapi + transcript SOLO final', () => {
+    const assistant = buildAssistant();
+    // tool-calls es vital — sin él las tools dejan de llegar al webhook.
+    expect(assistant.serverMessages).toContain('tool-calls');
+    // Solo transcripciones finales; el default de Vapi no manda 'transcript'.
+    expect(assistant.serverMessages).toContain('transcript[transcriptType="final"]');
+    expect(assistant.serverMessages).not.toContain('transcript');
+  });
+
   it('lleva las 4 tools de la especificación más endCall', () => {
     const assistant = buildAssistant();
     const funcionales = assistant.model.tools.filter(

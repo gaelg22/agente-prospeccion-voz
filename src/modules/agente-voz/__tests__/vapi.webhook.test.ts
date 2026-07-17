@@ -29,11 +29,10 @@ vi.mock('../tool-handlers', () => ({
   },
 }));
 
-vi.mock('../../leads/lead.schema', () => ({
-  Lead: {
-    updateOne: vi.fn().mockResolvedValue({ modifiedCount: 1 }),
-  },
+const mockTranscriptLinea = vi.hoisted(() => ({
+  create: vi.fn().mockResolvedValue({}),
 }));
+vi.mock('../transcript.schema', () => ({ TranscriptLinea: mockTranscriptLinea }));
 
 // Importar el router DESPUÉS de configurar los mocks
 import { vapiWebhookRouter } from '../vapi.webhook';
@@ -236,5 +235,81 @@ describe('POST /webhooks/vapi — tool-calls', () => {
     expect(res.status).toBe(200);
     const result = JSON.parse(res.body.results[0].result as string) as { ok: boolean };
     expect(result.ok).toBe(false);
+  });
+});
+
+// ─── Tests: transcript → colección transcripts (TTL), nunca a lead.notas ─────
+
+describe('POST /webhooks/vapi — transcript', () => {
+  let app: express.Application;
+  const HEADERS = { 'x-vapi-secret': 'secreto-de-prueba-exacto' };
+  const call = { id: 'call-tr-1', metadata: { leadId: '6a556c0a283075dd579efea7' } };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    app = buildTestApp();
+  });
+
+  it('línea final (type "transcript") se guarda en la colección transcripts', async () => {
+    const res = await request(app).post('/webhooks/vapi').set(HEADERS).send({
+      message: {
+        type: 'transcript',
+        transcriptType: 'final',
+        transcript: 'Sí, me interesa la cita.',
+        role: 'user',
+        call,
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockTranscriptLinea.create).toHaveBeenCalledWith({
+      leadId: '6a556c0a283075dd579efea7',
+      vapiCallId: 'call-tr-1',
+      rol: 'user',
+      texto: 'Sí, me interesa la cita.',
+    });
+  });
+
+  it('acepta el type literal transcript[transcriptType="final"] de la suscripción', async () => {
+    await request(app).post('/webhooks/vapi').set(HEADERS).send({
+      message: {
+        type: 'transcript[transcriptType="final"]',
+        transcriptType: 'final',
+        transcript: 'Perfecto, agendamos.',
+        role: 'assistant',
+        call,
+      },
+    });
+
+    expect(mockTranscriptLinea.create).toHaveBeenCalledOnce();
+  });
+
+  it('las líneas partial NO se guardan', async () => {
+    await request(app).post('/webhooks/vapi').set(HEADERS).send({
+      message: {
+        type: 'transcript',
+        transcriptType: 'partial',
+        transcript: 'Sí, me inte',
+        role: 'user',
+        call,
+      },
+    });
+
+    expect(mockTranscriptLinea.create).not.toHaveBeenCalled();
+  });
+
+  it('sin leadId en metadata no guarda nada (y responde 200)', async () => {
+    const res = await request(app).post('/webhooks/vapi').set(HEADERS).send({
+      message: {
+        type: 'transcript',
+        transcriptType: 'final',
+        transcript: 'Hola.',
+        role: 'user',
+        call: { id: 'call-sin-lead' },
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockTranscriptLinea.create).not.toHaveBeenCalled();
   });
 });

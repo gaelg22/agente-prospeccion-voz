@@ -93,6 +93,8 @@ export const zVapiWebhookBody = z.object({
     toolCallList: z.array(zToolCall).optional(),
     call: zCallInfo.optional(),
     transcript: z.string().optional(),
+    // 'partial' | 'final' — solo las finales se persisten
+    transcriptType: z.string().optional(),
     role: z.enum(['assistant', 'user']).optional(),
   }),
 });

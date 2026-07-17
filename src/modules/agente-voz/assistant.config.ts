@@ -383,8 +383,27 @@ export interface VapiTransientAssistant {
   // 'off' | 'office' | URL de audio. Sin declararlo, Vapi mete ambiente de
   // oficina por default en llamadas telefónicas y se escucha como ruido.
   backgroundSound: 'off';
+  serverMessages: readonly string[];
   server: VapiTool['server'];
 }
+
+// Eventos que Vapi manda al webhook. El default de Vapi NO incluye 'transcript'
+// (verificado docs.vapi.ai, jul 2026): sin declarar esto ninguna línea de
+// transcripción llega al server. Se piden SOLO las finales con la variante
+// transcript[transcriptType="final"] — los partials duplicarían cada frase.
+// El resto replica el default de Vapi para no cambiar el comportamiento actual.
+export const SERVER_MESSAGES = [
+  'conversation-update',
+  'end-of-call-report',
+  'function-call',
+  'hang',
+  'speech-update',
+  'status-update',
+  'tool-calls',
+  'transfer-destination-request',
+  'user-interrupted',
+  'transcript[transcriptType="final"]',
+] as const;
 
 export function buildAssistant(): VapiTransientAssistant {
   return {
@@ -424,6 +443,7 @@ export function buildAssistant(): VapiTransientAssistant {
     // Sin esto Vapi agrega ambiente de oficina a la llamada ("mucho ruido"
     // reportado en las pruebas del 11 jul).
     backgroundSound: 'off',
+    serverMessages: SERVER_MESSAGES,
     server: webhookServer,
   };
 }

@@ -3,7 +3,7 @@ import { config } from '../../config';
 import { logger } from '../../lib/logger';
 import { zVapiWebhookBody, VapiToolCallsResponse, leadIdDeLlamada } from './vapi.zod';
 import { TOOL_HANDLERS } from './tool-handlers';
-import { Lead } from '../leads/lead.schema';
+import { TranscriptLinea } from './transcript.schema';
 
 export const vapiWebhookRouter = Router();
 
@@ -114,15 +114,21 @@ vapiWebhookRouter.post('/', async (req: Request, res: Response, next: NextFuncti
     }
 
     // ── transcript ────────────────────────────────────────────────────────
-    if (message.type === 'transcript' && message.call) {
+    // El assistant se suscribe a transcript[transcriptType="final"] (el type
+    // llega con ese literal, por eso el startsWith). Solo se guardan líneas
+    // finales — el filtro de partial es defensa extra — y van a la colección
+    // transcripts (TTL 90 días), NO a lead.notas: notas es solo bitácora.
+    if (message.type.startsWith('transcript') && message.call) {
       const texto = message.transcript;
       const rol = message.role;
 
-      if (leadId && texto) {
-        await Lead.updateOne(
-          { _id: leadId },
-          { $push: { notas: `[${rol ?? 'unknown'}] ${texto}` } },
-        ).catch((err: unknown) =>
+      if (leadId && texto && message.transcriptType !== 'partial') {
+        await TranscriptLinea.create({
+          leadId,
+          vapiCallId: message.call.id,
+          rol: rol ?? 'unknown',
+          texto,
+        }).catch((err: unknown) =>
           logger.warn({ err, leadId }, 'No se pudo guardar línea de transcripción'),
         );
       }
