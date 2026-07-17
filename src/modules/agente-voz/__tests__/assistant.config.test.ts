@@ -272,12 +272,40 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
 
   it('la postura es de APOYO y ya NO enumera productos ni líneas de negocio', () => {
     // Cambio de reglas de negocio (asesor): Sofía no presenta productos — eso
-    // lo hace el Asesor en la cita. El pitch es una sola frase de apoyo.
-    expect(systemPrompt).toContain('revisen si están bien protegidos');
+    // lo hace el Asesor en la cita. El pitch es el encuadre de valor autorizado.
     expect(systemPrompt).toContain('NO presentas ni enumeras productos');
     // Restos del catálogo del guion v1 eliminados.
     expect(systemPrompt).not.toContain('planes de vida y gastos médicos');
     expect(systemPrompt).not.toContain('protección de vida, gastos médicos o ahorro');
+  });
+
+  it('el pitch usa el encuadre del asesor y la línea que desarma la venta', () => {
+    // Material del asesor (jul 2026): encuadre de temas + "no compre nada".
+    expect(systemPrompt).toContain(
+      'información de valor para usted y su familia en temas de salud, protección, ahorro y retiro',
+    );
+    expect(systemPrompt).toContain('a través de una videollamada con uno de nuestros asesores');
+    expect(systemPrompt).toContain(
+      'No se trata de que compre nada — es una plática sin costo para revisar cómo está protegido hoy.',
+    );
+    // Al asesor no se le nombra: la identidad pública es solo la empresa.
+    expect(systemPrompt).toContain('siempre "uno de nuestros asesores"');
+  });
+
+  it('pregunta mañana/tarde ANTES de la oferta y el tramo elegido filtra los horarios', () => {
+    const pregunta = '¿Cuándo le queda mejor, por la mañana o por la tarde?';
+    expect(systemPrompt).toContain(pregunta);
+    // La preferencia se pregunta antes de ofrecer cualquier horario.
+    expect(systemPrompt.indexOf(pregunta)).toBeLessThan(systemPrompt.indexOf('Primera oferta'));
+    expect(systemPrompt.indexOf(pregunta)).toBeLessThan(
+      systemPrompt.indexOf('Ejecuta `verificar_disponibilidad`'),
+    );
+    // El corte del tramo es a las 14:00 y la preferencia nunca se ignora.
+    expect(systemPrompt).toContain('mañana = horas hasta las 14:00');
+    expect(systemPrompt).toContain('tarde = de las 14:00 en adelante');
+    expect(systemPrompt).toContain('NUNCA preguntes la preferencia y luego la ignores');
+    // Sin espacios en el tramo pedido → se dice y se ofrece la alternativa.
+    expect(systemPrompt).toContain('el otro tramo de ese mismo día');
   });
 
   it('el flujo decide la modalidad por zona antes de agendar y fija la duración', () => {
