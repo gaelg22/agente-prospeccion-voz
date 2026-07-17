@@ -217,7 +217,7 @@ export const assistantTools: readonly VapiTool[] = [
     function: {
       name: 'agendar_cita',
       description:
-        'Agenda la cita en el día y hora que el prospecto confirmó de viva voz, en la modalidad elegida (videollamada o presencial). Solo llamar con día y hora ya aceptados por la persona, ofrecidos por verificar_disponibilidad, y DESPUÉS de preguntarle si desea recibir la invitación por WhatsApp. Regresa el folio de confirmación y whatsappEnviado (si es false, dicta folio y hora de viva voz).',
+        'Agenda la cita en el día y hora que el prospecto confirmó de viva voz, en la modalidad elegida (videollamada o presencial). Solo llamar con día y hora ya aceptados por la persona, ofrecidos por verificar_disponibilidad, y DESPUÉS de preguntarle si desea recibir la invitación por WhatsApp. Regresa el folio de confirmación y whatsappEnviado (si es false, di que un asesor se comunicará directamente con la persona; el folio NUNCA se dice por voz).',
       parameters: {
         type: 'object',
         properties: {

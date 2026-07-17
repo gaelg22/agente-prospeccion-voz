@@ -187,6 +187,16 @@ export class AgendaService {
         'Sin consentimiento WhatsApp — cita agendada sin envío de confirmación',
       );
     }
+
+    // Aviso interno al asesor — SIEMPRE que haya cita, con o sin consentimiento
+    // del prospecto. sendAdvisorNotice nunca lanza (best-effort interno) y se
+    // salta con log si ASESOR_WHATSAPP no está configurada.
+    await this.notificaciones.sendAdvisorNotice(lead, {
+      citaFecha: startDate,
+      modalidad,
+      folio: event.eventId,
+      contactarDirecto: !whatsapp.enviar,
+    });
   }
 
   /**

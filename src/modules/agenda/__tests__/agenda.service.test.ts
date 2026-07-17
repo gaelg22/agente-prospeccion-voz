@@ -37,10 +37,14 @@ function setup(busySlots: Array<{ start: string; end: string }> = []) {
   }));
   const getBusySlots = vi.fn(async () => busySlots);
   const sendBookingConfirmation = vi.fn(async () => undefined);
+  const sendAdvisorNotice = vi.fn(async () => undefined);
   const calendar = { createEvent, getBusySlots } as unknown as CalendarClient;
-  const notificaciones = { sendBookingConfirmation } as unknown as NotificacionesService;
+  const notificaciones = {
+    sendBookingConfirmation,
+    sendAdvisorNotice,
+  } as unknown as NotificacionesService;
   const agenda = new AgendaService(calendar, notificaciones);
-  return { agenda, createEvent, getBusySlots, sendBookingConfirmation };
+  return { agenda, createEvent, getBusySlots, sendBookingConfirmation, sendAdvisorNotice };
 }
 
 describe('AgendaService.book — duración del evento por modalidad', () => {
@@ -82,29 +86,42 @@ describe('AgendaService.book — consentimiento WhatsApp', () => {
     mockLeadService.transition.mockResolvedValue({});
   });
 
-  it('sin consentimiento (default): agenda la cita pero NO envía WhatsApp', async () => {
-    const { agenda, createEvent, sendBookingConfirmation } = setup();
+  it('sin consentimiento (default): NO envía al prospecto pero SÍ avisa al asesor con contactarDirecto', async () => {
+    const { agenda, createEvent, sendBookingConfirmation, sendAdvisorNotice } = setup();
     await agenda.book('lead-1', '2026-08-03T17:00:00');
 
     expect(createEvent).toHaveBeenCalledOnce();
     expect(mockLeadService.transition).toHaveBeenCalledWith('lead-1', 'agendado', expect.anything());
     expect(sendBookingConfirmation).not.toHaveBeenCalled();
+    // El asesor SIEMPRE recibe el aviso; sin consentimiento, con la marca de
+    // contactar directamente al prospecto para hacerle llegar los datos.
+    expect(sendAdvisorNotice).toHaveBeenCalledOnce();
+    expect(sendAdvisorNotice.mock.calls[0]?.[1]).toMatchObject({
+      folio: 'evt-1',
+      contactarDirecto: true,
+    });
   });
 
-  it('enviar:false explícito: cero envíos', async () => {
-    const { agenda, sendBookingConfirmation } = setup();
+  it('enviar:false explícito: cero envíos al prospecto, aviso al asesor con contactarDirecto', async () => {
+    const { agenda, sendBookingConfirmation, sendAdvisorNotice } = setup();
     await agenda.book('lead-1', '2026-08-03T17:00:00', 'virtual', { enviar: false });
 
     expect(sendBookingConfirmation).not.toHaveBeenCalled();
+    expect(sendAdvisorNotice.mock.calls[0]?.[1]).toMatchObject({ contactarDirecto: true });
   });
 
-  it('con consentimiento sin alterno: envía sin telefonoDestino (usa el de la llamada)', async () => {
-    const { agenda, sendBookingConfirmation } = setup();
+  it('con consentimiento sin alterno: ambos envíos; el del prospecto sin telefonoDestino', async () => {
+    const { agenda, sendBookingConfirmation, sendAdvisorNotice } = setup();
     await agenda.book('lead-1', '2026-08-03T17:00:00', 'virtual', { enviar: true });
 
     expect(sendBookingConfirmation).toHaveBeenCalledOnce();
     const cita = sendBookingConfirmation.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(cita).not.toHaveProperty('telefonoDestino');
+    expect(sendAdvisorNotice).toHaveBeenCalledOnce();
+    expect(sendAdvisorNotice.mock.calls[0]?.[1]).toMatchObject({
+      folio: 'evt-1',
+      contactarDirecto: false,
+    });
   });
 
   it('con consentimiento y alterno validado: el destino es el alterno', async () => {

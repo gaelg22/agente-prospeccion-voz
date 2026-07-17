@@ -285,7 +285,8 @@ export const handleAgendarCita: ToolHandler = async (toolCall, ctx) => {
         modalidad,
         meetUrl,
         // false cuando no hubo consentimiento O el alterno no validó: en ambos
-        // casos el modelo debe dictar folio y hora de viva voz (Paso 7).
+        // casos el modelo remite al asesor (Paso 7) — el folio nunca se dice
+        // por voz, viaja solo en el WhatsApp.
         whatsappEnviado: enviarWhatsapp,
       }),
     };

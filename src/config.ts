@@ -98,6 +98,11 @@ const envSchema = z.object({
   KAPSO_API_URL: z.string().url().optional(),
   KAPSO_API_KEY: z.string().min(1).optional(),
   KAPSO_WHATSAPP_TEMPLATE: z.string().default('confirmacion_cita'),
+  // Número E.164 del ASESOR para el aviso interno de cita agendada (folio,
+  // prospecto, fecha, modalidad). Opcional: sin él, el aviso se salta con log.
+  ASESOR_WHATSAPP: z.string().min(1).optional(),
+  // Template Kapso del aviso al asesor.
+  KAPSO_ASESOR_TEMPLATE: z.string().default('aviso_cita_asesor'),
 
   // ── Agenda (jobs) ─────────────────────────────────────────────────────────
   AGENDA_COLLECTION: z.string().default('agendaJobs'),

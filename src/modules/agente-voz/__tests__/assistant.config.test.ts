@@ -344,13 +344,28 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     // Máximo dos intentos; el fallback deriva a un asesor y dicta folio de viva voz.
     expect(systemPrompt).toContain('UNA sola vez más');
     expect(systemPrompt).toContain('Nunca hagas un tercer intento');
-    expect(systemPrompt).toContain(
-      'Un asesor se comunicará con usted para completar el registro',
-    );
-    // Sin consentimiento → folio y hora de viva voz, sin envío.
-    expect(systemPrompt).toContain('en el cierre dictas el folio y la hora de viva voz');
+    expect(systemPrompt).toContain('Una disculpa, no quiero registrar un número incorrecto.');
+    // Sin consentimiento (o fallback de dictado) → un asesor contacta directo,
+    // con la MISMA frase en ambos casos.
+    const fraseAsesor = 'Un asesor se comunicará directamente con usted para darle los datos de la reunión.';
+    const apariciones = systemPrompt.split(fraseAsesor).length - 1;
+    expect(apariciones).toBeGreaterThanOrEqual(2); // fallback de dictado + cierre sin consentimiento
     // El cierre distingue si el backend realmente envió el WhatsApp.
     expect(systemPrompt).toContain('`whatsappEnviado`');
+  });
+
+  it('el folio NUNCA se dice por voz: cero instrucciones de dictarlo en todo el prompt', () => {
+    // El valor del folio viaja únicamente en el WhatsApp; Sofía puede anunciar
+    // que la invitación llegará con folio, pero jamás pronunciarlo.
+    expect(systemPrompt).toContain('El folio NUNCA se dice por voz');
+    expect(systemPrompt).toContain('viaja únicamente en el WhatsApp');
+    // Restos de los guiones viejos que pedían dictarlo, eliminados:
+    expect(systemPrompt).not.toContain('dictas el folio');
+    expect(systemPrompt).not.toContain('el folio en bloques');
+    expect(systemPrompt).not.toContain('folio de confirmación:');
+    expect(systemPrompt).not.toContain('hora y folio');
+    expect(systemPrompt).not.toContain('folio despacio');
+    expect(systemPrompt).not.toMatch(/folio y la hora de viva voz|deletrea el folio|repite el folio/i);
   });
 
   it('el paso de consentimiento no contiene ningún relleno de espera del modelo', () => {
