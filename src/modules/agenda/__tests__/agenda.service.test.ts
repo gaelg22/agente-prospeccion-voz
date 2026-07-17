@@ -52,7 +52,7 @@ describe('AgendaService.book — duración del evento por modalidad', () => {
 
   it('virtual (default): evento de 1 h y sí pide Meet', async () => {
     const { agenda, createEvent, sendBookingConfirmation } = setup();
-    await agenda.book('lead-1', '2026-08-03T17:00:00');
+    await agenda.book('lead-1', '2026-08-03T17:00:00', undefined, { enviar: true });
 
     const params = createEvent.mock.calls[0]?.[0] as CalendarEventParams;
     expect(params.startIso).toBe('2026-08-03T17:00:00');
@@ -63,13 +63,61 @@ describe('AgendaService.book — duración del evento por modalidad', () => {
 
   it('presencial: evento de 2 h y NO pide Meet', async () => {
     const { agenda, createEvent, sendBookingConfirmation } = setup();
-    await agenda.book('lead-1', '2026-08-03T17:00:00', 'presencial');
+    await agenda.book('lead-1', '2026-08-03T17:00:00', 'presencial', { enviar: true });
 
     const params = createEvent.mock.calls[0]?.[0] as CalendarEventParams;
     expect(params.startIso).toBe('2026-08-03T17:00:00');
     expect(params.endIso).toBe('2026-08-03T19:00:00'); // +2 h
     expect(params.withMeet).toBe(false);
     expect(sendBookingConfirmation.mock.calls[0]?.[1]).toMatchObject({ modalidad: 'presencial' });
+  });
+});
+
+// ─── Consentimiento WhatsApp: sin él, cero envíos ────────────────────────────
+
+describe('AgendaService.book — consentimiento WhatsApp', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLeadService.findById.mockResolvedValue(leadAcepto);
+    mockLeadService.transition.mockResolvedValue({});
+  });
+
+  it('sin consentimiento (default): agenda la cita pero NO envía WhatsApp', async () => {
+    const { agenda, createEvent, sendBookingConfirmation } = setup();
+    await agenda.book('lead-1', '2026-08-03T17:00:00');
+
+    expect(createEvent).toHaveBeenCalledOnce();
+    expect(mockLeadService.transition).toHaveBeenCalledWith('lead-1', 'agendado', expect.anything());
+    expect(sendBookingConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('enviar:false explícito: cero envíos', async () => {
+    const { agenda, sendBookingConfirmation } = setup();
+    await agenda.book('lead-1', '2026-08-03T17:00:00', 'virtual', { enviar: false });
+
+    expect(sendBookingConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('con consentimiento sin alterno: envía sin telefonoDestino (usa el de la llamada)', async () => {
+    const { agenda, sendBookingConfirmation } = setup();
+    await agenda.book('lead-1', '2026-08-03T17:00:00', 'virtual', { enviar: true });
+
+    expect(sendBookingConfirmation).toHaveBeenCalledOnce();
+    const cita = sendBookingConfirmation.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(cita).not.toHaveProperty('telefonoDestino');
+  });
+
+  it('con consentimiento y alterno validado: el destino es el alterno', async () => {
+    const { agenda, sendBookingConfirmation } = setup();
+    await agenda.book('lead-1', '2026-08-03T17:00:00', 'virtual', {
+      enviar: true,
+      destino: '+524921112233',
+    });
+
+    expect(sendBookingConfirmation).toHaveBeenCalledOnce();
+    expect(sendBookingConfirmation.mock.calls[0]?.[1]).toMatchObject({
+      telefonoDestino: '+524921112233',
+    });
   });
 });
 

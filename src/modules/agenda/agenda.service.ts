@@ -25,6 +25,17 @@ export class SlotNoDisponibleError extends Error {
 }
 
 
+/**
+ * Decisión de envío de la confirmación por WhatsApp, resuelta ANTES de book():
+ * - enviar: true solo si el prospecto consintió de viva voz Y no dictó un
+ *   alterno que falló la validación (en ese caso no se manda nada y queda nota).
+ * - destino: número alterno ya validado (E.164); sin él se usa el de la llamada.
+ */
+export interface WhatsappEnvio {
+  enviar: boolean;
+  destino?: string;
+}
+
 export class AgendaService {
   private readonly calendar: CalendarClient;
   private readonly notificaciones: NotificacionesService;
@@ -53,11 +64,13 @@ export class AgendaService {
    * @param leadId The lead's MongoDB ObjectId or string
    * @param slotIso ISO datetime string for the slot start (e.g. "2025-08-01T10:00:00")
    * @param modalidad 'virtual' (default) o 'presencial'
+   * @param whatsapp decisión de envío — sin consentimiento explícito NO se envía nada
    */
   async book(
     leadId: string | Types.ObjectId,
     slotIso: string,
     modalidad: Modalidad = 'virtual',
+    whatsapp: WhatsappEnvio = { enviar: false },
   ): Promise<void> {
     const lead = await LeadService.findById(String(leadId));
     if (!lead) throw new Error(`Lead not found: ${String(leadId)}`);
@@ -150,19 +163,28 @@ export class AgendaService {
       nota: `Cita agendada: ${event.htmlLink ?? event.eventId}`,
     });
 
-    // Send WhatsApp confirmation — best-effort, no debe bloquear el agendado
-    // Si Kapso no está configurado o falla, se loguea y se continúa.
-    try {
-      await this.notificaciones.sendBookingConfirmation(lead, {
-        citaFecha: startDate,
-        meetUrl: event.meetUrl,
-        modalidad,
-      });
-      logger.info({ leadId: String(leadId), eventId: event.eventId }, 'Lead agendado — cycle complete');
-    } catch (notifErr) {
-      logger.warn(
-        { err: notifErr, leadId: String(leadId) },
-        'WhatsApp no enviado (Kapso no configurado o error de red) — cita agendada de todas formas',
+    // Send WhatsApp confirmation — SOLO con consentimiento explícito del
+    // prospecto (whatsapp.enviar). Best-effort: si Kapso no está configurado
+    // o falla, se loguea y se continúa.
+    if (whatsapp.enviar) {
+      try {
+        await this.notificaciones.sendBookingConfirmation(lead, {
+          citaFecha: startDate,
+          meetUrl: event.meetUrl,
+          modalidad,
+          ...(whatsapp.destino ? { telefonoDestino: whatsapp.destino } : {}),
+        });
+        logger.info({ leadId: String(leadId), eventId: event.eventId }, 'Lead agendado — cycle complete');
+      } catch (notifErr) {
+        logger.warn(
+          { err: notifErr, leadId: String(leadId) },
+          'WhatsApp no enviado (Kapso no configurado o error de red) — cita agendada de todas formas',
+        );
+      }
+    } else {
+      logger.info(
+        { leadId: String(leadId), eventId: event.eventId },
+        'Sin consentimiento WhatsApp — cita agendada sin envío de confirmación',
       );
     }
   }

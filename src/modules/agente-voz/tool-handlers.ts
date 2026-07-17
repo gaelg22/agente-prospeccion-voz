@@ -5,6 +5,7 @@ import { isTerminal, InvalidTransitionError } from '../leads/lead.transitions';
 import { ColaService } from '../cola/cola.service';
 import { mapearDesenlace } from './call-outcome.handler';
 import { AgendaService } from '../agenda/agenda.service';
+import { normalizePhone } from '../../lib/phone';
 import { CalendarClient } from '../agenda/calendar.client';
 import { getNextDaysWithSlots } from '../agenda/slots';
 import { duracionHoras } from '../agenda/modalidad';
@@ -190,11 +191,15 @@ export const handleVerificarDisponibilidad: ToolHandler = async (toolCall) => {
 // la confirmación por WhatsApp vía Kapso.
 
 export const handleAgendarCita: ToolHandler = async (toolCall, ctx) => {
-  const { fecha, hora, modalidad, notas } = zArgsAgendarCita.parse(toolCall.function.arguments);
+  const { fecha, hora, modalidad, consienteWhatsapp, whatsappAlterno, notas } =
+    zArgsAgendarCita.parse(toolCall.function.arguments);
   if (!ctx.leadId) return sinLead(toolCall, 'agendar_cita');
   const { leadId } = ctx;
 
-  logger.info({ leadId, fecha, hora, modalidad, notas }, 'Tool: agendar_cita');
+  logger.info(
+    { leadId, fecha, hora, modalidad, consienteWhatsapp, whatsappAlterno, notas },
+    'Tool: agendar_cita',
+  );
 
   try {
     const lead = await LeadService.findById(leadId);
@@ -222,17 +227,46 @@ export const handleAgendarCita: ToolHandler = async (toolCall, ctx) => {
     // slotIso: "YYYY-MM-DDTHH:mm:ss" en zona México (Calendar lo interpreta con TZ)
     const slotIso = `${fecha}T${hora}:00`;
 
-    // Guardar notas directamente sin cambiar el estado (evita transición acepto→acepto ilegal)
-    if (notas) {
-      await Lead.updateOne({ _id: lead._id }, { $push: { notas: `Notas llamada: ${notas}` } }).catch(
-        () => null,
-      );
+    // ── Consentimiento WhatsApp y número alterno ──────────────────────────────
+    // El alterno dictado por voz se valida como número MX (E.164). Si no valida:
+    // se ignora, queda nota, y NO se envía nada — ni siquiera al número de la
+    // llamada, porque la persona pidió explícitamente OTRO destino.
+    const alternoNormalizado = whatsappAlterno ? normalizePhone(whatsappAlterno) : null;
+    const alternoInvalido = Boolean(whatsappAlterno) && alternoNormalizado === null;
+    const enviarWhatsapp = consienteWhatsapp && !alternoInvalido;
+    if (alternoInvalido) {
+      logger.warn({ leadId, whatsappAlterno }, 'agendar_cita: alterno no validó como número MX — sin envío');
     }
 
+    // Persistir consentimiento/alterno y notas sin cambiar el estado
+    // (evita transición acepto→acepto ilegal)
+    const notasNuevas: string[] = [];
+    if (notas) notasNuevas.push(`Notas llamada: ${notas}`);
+    if (alternoInvalido) {
+      notasNuevas.push(
+        `WhatsApp alterno inválido ("${whatsappAlterno}") — confirmación NO enviada, contactar para completar registro`,
+      );
+    }
+    await Lead.updateOne(
+      { _id: lead._id },
+      {
+        $set: {
+          consienteWhatsapp,
+          ...(alternoNormalizado ? { whatsappAlterno: alternoNormalizado } : {}),
+        },
+        ...(notasNuevas.length ? { $push: { notas: { $each: notasNuevas } } } : {}),
+      },
+    ).catch(() => null);
+
     const agenda = new AgendaService();
-    // book() crea el evento en Calendar, transiciona a 'agendado' y envía WhatsApp.
-    // La modalidad define la duración (virtual 1 h, presencial 2 h).
-    await agenda.book(leadId, slotIso, modalidad);
+    // book() crea el evento en Calendar, transiciona a 'agendado' y envía la
+    // confirmación por WhatsApp SOLO si hubo consentimiento (al alterno validado
+    // o, sin alterno, al número de la llamada). La modalidad define la duración
+    // (virtual 1 h, presencial 2 h).
+    await agenda.book(leadId, slotIso, modalidad, {
+      enviar: enviarWhatsapp,
+      ...(alternoNormalizado ? { destino: alternoNormalizado } : {}),
+    });
 
     // Recuperar el lead actualizado para obtener el folio (googleEventId)
     const leadAgendado = await LeadService.findById(leadId);
@@ -250,6 +284,9 @@ export const handleAgendarCita: ToolHandler = async (toolCall, ctx) => {
         hora,
         modalidad,
         meetUrl,
+        // false cuando no hubo consentimiento O el alterno no validó: en ambos
+        // casos el modelo debe dictar folio y hora de viva voz (Paso 7).
+        whatsappEnviado: enviarWhatsapp,
       }),
     };
   } catch (err) {

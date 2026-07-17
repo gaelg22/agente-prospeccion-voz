@@ -80,6 +80,12 @@ export interface ILead {
   vapiCallId?: string;           // ID de la llamada en Vapi
   transcripcion?: string;        // resumen/transcripción de la última llamada
 
+  // Consentimiento de WhatsApp capturado por voz al agendar la cita.
+  // whatsappAlterno solo se persiste si validó como número MX (E.164):
+  // un alterno que no validó se ignora y queda registrado en notas.
+  consienteWhatsapp?: boolean;
+  whatsappAlterno?: string;
+
   // Cita (solo si status === 'agendado')
   cita?: ICita;
 
@@ -156,6 +162,10 @@ const leadSchema = new Schema<ILead>(
     noLlamarAntesDe: { type: Date, default: undefined },
     vapiCallId: String,
     transcripcion: String,
+
+    // Consentimiento WhatsApp (ver ILead)
+    consienteWhatsapp: { type: Boolean, default: undefined },
+    whatsappAlterno: { type: String, default: undefined },
 
     // Cita
     cita: { type: citaSchema, default: undefined },

@@ -7,7 +7,7 @@ import { MODALIDADES } from '../agenda/modalidad';
 // ─── Tipos de tools de Vapi ───────────────────────────────────────────────────
 
 export interface VapiToolProperty {
-  type: 'string';
+  type: 'string' | 'boolean';
   description: string;
   enum?: readonly string[];
 }
@@ -217,7 +217,7 @@ export const assistantTools: readonly VapiTool[] = [
     function: {
       name: 'agendar_cita',
       description:
-        'Agenda la cita en el día y hora que el prospecto confirmó de viva voz, en la modalidad elegida (videollamada o presencial). Solo llamar con día y hora ya aceptados por la persona, y que hayan sido ofrecidos por verificar_disponibilidad. Regresa el folio de confirmación.',
+        'Agenda la cita en el día y hora que el prospecto confirmó de viva voz, en la modalidad elegida (videollamada o presencial). Solo llamar con día y hora ya aceptados por la persona, ofrecidos por verificar_disponibilidad, y DESPUÉS de preguntarle si desea recibir la invitación por WhatsApp. Regresa el folio de confirmación y whatsappEnviado (si es false, dicta folio y hora de viva voz).',
       parameters: {
         type: 'object',
         properties: {
@@ -236,13 +236,23 @@ export const assistantTools: readonly VapiTool[] = [
             description:
               'Modalidad de la cita: "virtual" (videollamada, 1 hora) o "presencial" (2 horas). Debe ser la misma que se usó en verificar_disponibilidad.',
           },
+          consienteWhatsapp: {
+            type: 'boolean',
+            description:
+              'true SOLO si la persona aceptó de viva voz recibir la invitación por WhatsApp; false si no quiere WhatsApp o si no se pudo confirmar un número alterno correcto. Con false no se envía ningún mensaje.',
+          },
+          whatsappAlterno: {
+            type: 'string',
+            description:
+              'Opcional: número alterno para el WhatsApp, SOLO si la persona lo dictó y lo confirmó tras la relectura de viva voz (diez dígitos de México, ej. 4921112233). Omitir para usar el número de la llamada.',
+          },
           notas: {
             type: 'string',
             description:
               "Opcional: observaciones dichas por el prospecto (ej. 'para él y su esposa', 'no tiene WhatsApp')",
           },
         },
-        required: ['fecha', 'hora', 'modalidad'],
+        required: ['fecha', 'hora', 'modalidad', 'consienteWhatsapp'],
       },
     },
     server: webhookServer,

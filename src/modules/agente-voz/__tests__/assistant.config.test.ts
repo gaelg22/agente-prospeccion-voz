@@ -62,13 +62,32 @@ describe('assistantTools — estructura y server target', () => {
     }
   });
 
-  it('agendar_cita requiere fecha, hora y modalidad', () => {
+  it('agendar_cita requiere fecha, hora, modalidad y consienteWhatsapp', () => {
     const agendar = assistantTools.find((t) => t.function.name === 'agendar_cita');
-    expect(agendar?.function.parameters.required).toEqual(['fecha', 'hora', 'modalidad']);
+    expect(agendar?.function.parameters.required).toEqual([
+      'fecha',
+      'hora',
+      'modalidad',
+      'consienteWhatsapp',
+    ]);
     expect(agendar?.function.parameters.properties['modalidad']?.enum).toEqual([
       'virtual',
       'presencial',
     ]);
+  });
+
+  it('agendar_cita declara consienteWhatsapp (boolean) y whatsappAlterno (string opcional)', () => {
+    const agendar = assistantTools.find((t) => t.function.name === 'agendar_cita');
+    const props = agendar?.function.parameters.properties;
+
+    expect(props?.['consienteWhatsapp']?.type).toBe('boolean');
+    // El LLM debe saber que false = cero envíos.
+    expect(props?.['consienteWhatsapp']?.description).toContain('no se envía ningún mensaje');
+
+    expect(props?.['whatsappAlterno']?.type).toBe('string');
+    // Solo un número dictado Y confirmado por relectura puede viajar aquí.
+    expect(props?.['whatsappAlterno']?.description).toContain('confirmó tras la relectura');
+    expect(agendar?.function.parameters.required).not.toContain('whatsappAlterno');
   });
 
   it('verificar_disponibilidad requiere la modalidad (define la duración del slot)', () => {
@@ -310,6 +329,39 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     // Restos del esquema de "turno de despedida" eliminados para no confundir.
     expect(systemPrompt).not.toContain('TURNO HABLADO PURO');
     expect(systemPrompt).not.toContain('PROHIBIDO mezclar despedida y herramientas en el mismo turno');
+  });
+
+  it('el consentimiento de WhatsApp se pregunta ANTES de agendar_cita, con guion completo', () => {
+    // Paso 6: la tool se invoca UNA vez, ya con la respuesta de la persona —
+    // por eso la pregunta va antes de ejecutarla (los flags viajan en la tool).
+    expect(systemPrompt).toContain('SIEMPRE antes de ejecutar `agendar_cita`');
+    expect(systemPrompt).toContain(
+      '¿Le gustaría recibir la invitación por WhatsApp a este mismo número?',
+    );
+    // Captura del alterno: dictado despacio + relectura en bloques + confirmación.
+    expect(systemPrompt).toContain('pausa cada dos o tres dígitos');
+    expect(systemPrompt).toContain('Le repito el número para confirmar');
+    // Máximo dos intentos; el fallback deriva a un asesor y dicta folio de viva voz.
+    expect(systemPrompt).toContain('UNA sola vez más');
+    expect(systemPrompt).toContain('Nunca hagas un tercer intento');
+    expect(systemPrompt).toContain(
+      'Un asesor se comunicará con usted para completar el registro',
+    );
+    // Sin consentimiento → folio y hora de viva voz, sin envío.
+    expect(systemPrompt).toContain('en el cierre dictas el folio y la hora de viva voz');
+    // El cierre distingue si el backend realmente envió el WhatsApp.
+    expect(systemPrompt).toContain('`whatsappEnviado`');
+  });
+
+  it('el paso de consentimiento no contiene ningún relleno de espera del modelo', () => {
+    // La regla de clase de la sección 4 aplica también aquí: ni el guion del
+    // dictado ni la relectura pueden colar un "permítame"/"un momento".
+    const paso6 = systemPrompt.split('**Paso 6')[1]?.split('**Paso 7')[0] ?? '';
+    expect(paso6).toContain('PROHIBIDO cualquier relleno de espera');
+    expect(paso6).not.toMatch(/perm[ií]ta|un momento|un segundo|un instante|enseguida/i);
+    // La despedida sigue siendo del sistema — el Paso 7 no la agrega.
+    const paso7 = systemPrompt.split('**Paso 7')[1]?.split('## 6.')[0] ?? '';
+    expect(paso7).toContain('NO agregues la despedida');
   });
 
   it('el cierre exige SOLO la línea contextual y cero texto de transición hacia las tools', () => {

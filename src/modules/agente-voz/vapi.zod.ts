@@ -41,6 +41,12 @@ export const zArgsAgendarCita = z.object({
   // Modalidad ya elegida antes de agendar — decide la duración del evento
   // (virtual 1 h, presencial 2 h). Default 'virtual' como fallback seguro.
   modalidad: z.enum(MODALIDADES).default('virtual'),
+  // Consentimiento capturado por voz ANTES de invocar la tool. Default false:
+  // sin consentimiento explícito jamás se envía WhatsApp.
+  consienteWhatsapp: z.boolean().default(false),
+  // Número alterno dictado y confirmado por voz. El backend lo valida con
+  // libphonenumber-js (MX → E.164); si no valida, se ignora con nota.
+  whatsappAlterno: z.string().optional(),
   notas: z.string().optional(),
 });
 

@@ -32,9 +32,12 @@ export class NotificacionesService {
    */
   async sendBookingConfirmation(
     lead: Pick<ILead, 'razonSocial' | 'telefono'>,
-    cita: { citaFecha: Date; meetUrl: string | null; modalidad?: Modalidad },
+    cita: { citaFecha: Date; meetUrl: string | null; modalidad?: Modalidad; telefonoDestino?: string },
   ): Promise<void> {
-    if (!lead.telefono) {
+    // telefonoDestino: número alterno confirmado por voz y ya validado (E.164).
+    // Sin él, el destino es el número de la llamada.
+    const destino = cita.telefonoDestino ?? lead.telefono;
+    if (!destino) {
       logger.warn({ razonSocial: lead.razonSocial }, 'Cannot send WhatsApp — no phone number');
       return;
     }
@@ -49,7 +52,7 @@ export class NotificacionesService {
 
     try {
       await this.kapso.sendTemplate({
-        to: lead.telefono,
+        to: destino,
         templateName: config.KAPSO_WHATSAPP_TEMPLATE,
         variables: {
           razon_social: lead.razonSocial,

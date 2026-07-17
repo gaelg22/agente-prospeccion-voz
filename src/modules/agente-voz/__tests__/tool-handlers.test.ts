@@ -67,13 +67,13 @@ function toolCallRegistrar(desenlace: string, notas?: string): VapiToolCall {
   } as VapiToolCall;
 }
 
-function toolCallAgendar(): VapiToolCall {
+function toolCallAgendar(extra: Record<string, unknown> = {}): VapiToolCall {
   return {
     id: 'tc-agendar-01',
     type: 'function',
     function: {
       name: 'agendar_cita',
-      arguments: { fecha: '2026-08-03', hora: '17:00', modalidad: 'virtual' },
+      arguments: { fecha: '2026-08-03', hora: '17:00', modalidad: 'virtual', ...extra },
     },
   } as VapiToolCall;
 }
@@ -219,9 +219,101 @@ describe('handleAgendarCita — C1: fallo de Calendar deja al lead recuperable',
 
     expect(body.ok).toBe(true);
     expect(body.folio).toBe('evt-9');
-    expect(mockBook).toHaveBeenCalledWith('lead-123', '2026-08-03T17:00:00', 'virtual');
+    // Sin consienteWhatsapp en los argumentos, el default es NO enviar.
+    expect(mockBook).toHaveBeenCalledWith('lead-123', '2026-08-03T17:00:00', 'virtual', {
+      enviar: false,
+    });
     // Toda transición vive en book(); el handler no toca la máquina de estados.
     expect(mockLeadService.transition).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Consentimiento WhatsApp y número alterno ────────────────────────────────
+
+describe('handleAgendarCita — consentimiento WhatsApp y número alterno', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLeadModel.updateOne.mockResolvedValue({});
+    mockLeadService.findById
+      .mockResolvedValueOnce({ _id: 'lead-123', status: 'llamado' })
+      .mockResolvedValueOnce({
+        _id: 'lead-123',
+        status: 'agendado',
+        cita: { googleEventId: 'evt-9', meetUrl: null },
+      });
+    mockBook.mockResolvedValue(undefined);
+  });
+
+  it('sin consentimiento: book recibe enviar:false y el resultado lo refleja', async () => {
+    const res = await handleAgendarCita(toolCallAgendar({ consienteWhatsapp: false }), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean; whatsappEnviado: boolean };
+
+    expect(body.ok).toBe(true);
+    expect(body.whatsappEnviado).toBe(false);
+    expect(mockBook).toHaveBeenCalledWith('lead-123', '2026-08-03T17:00:00', 'virtual', {
+      enviar: false,
+    });
+    // El consentimiento (false) se persiste en el lead de todas formas.
+    expect(mockLeadModel.updateOne).toHaveBeenCalledWith(
+      { _id: 'lead-123' },
+      expect.objectContaining({ $set: { consienteWhatsapp: false } }),
+    );
+  });
+
+  it('consiente al número de la llamada: enviar:true sin destino alterno', async () => {
+    const res = await handleAgendarCita(toolCallAgendar({ consienteWhatsapp: true }), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean; whatsappEnviado: boolean };
+
+    expect(body.ok).toBe(true);
+    expect(body.whatsappEnviado).toBe(true);
+    expect(mockBook).toHaveBeenCalledWith('lead-123', '2026-08-03T17:00:00', 'virtual', {
+      enviar: true,
+    });
+  });
+
+  it('alterno válido: se normaliza a E.164, se persiste y se usa como destino', async () => {
+    const res = await handleAgendarCita(
+      toolCallAgendar({ consienteWhatsapp: true, whatsappAlterno: '492 111 2233' }),
+      CTX,
+    );
+    const body = JSON.parse(res.result) as { ok: boolean; whatsappEnviado: boolean };
+
+    expect(body.ok).toBe(true);
+    expect(body.whatsappEnviado).toBe(true);
+    expect(mockBook).toHaveBeenCalledWith('lead-123', '2026-08-03T17:00:00', 'virtual', {
+      enviar: true,
+      destino: '+524921112233',
+    });
+    expect(mockLeadModel.updateOne).toHaveBeenCalledWith(
+      { _id: 'lead-123' },
+      expect.objectContaining({
+        $set: { consienteWhatsapp: true, whatsappAlterno: '+524921112233' },
+      }),
+    );
+  });
+
+  it('alterno inválido: se ignora con nota y NO se envía nada', async () => {
+    const res = await handleAgendarCita(
+      toolCallAgendar({ consienteWhatsapp: true, whatsappAlterno: '123' }),
+      CTX,
+    );
+    const body = JSON.parse(res.result) as { ok: boolean; whatsappEnviado: boolean };
+
+    // La cita SÍ se agenda; solo se suprime el envío.
+    expect(body.ok).toBe(true);
+    expect(body.whatsappEnviado).toBe(false);
+    expect(mockBook).toHaveBeenCalledWith('lead-123', '2026-08-03T17:00:00', 'virtual', {
+      enviar: false,
+    });
+
+    const update = mockLeadModel.updateOne.mock.calls[0]?.[1] as {
+      $set: Record<string, unknown>;
+      $push?: { notas?: { $each: string[] } };
+    };
+    // El alterno inválido NO se persiste como whatsappAlterno…
+    expect(update.$set).toEqual({ consienteWhatsapp: true });
+    // …y queda nota para que un asesor complete el registro.
+    expect(update.$push?.notas?.$each.join(' ')).toContain('WhatsApp alterno inválido');
   });
 });
 
