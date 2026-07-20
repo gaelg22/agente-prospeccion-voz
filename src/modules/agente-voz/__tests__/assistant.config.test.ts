@@ -293,7 +293,7 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
   });
 
   it('ofrece los días ANTES de preguntar mañana/tarde, y la franja elegida filtra los horarios', () => {
-    const ofertaDias = 'Primera oferta — los días, todavía sin hora';
+    const ofertaDias = 'Primera oferta — SOLO los días, todavía sin hora';
     const pregunta = '¿Por la mañana o por la tarde?';
     expect(systemPrompt).toContain(ofertaDias);
     expect(systemPrompt).toContain(pregunta);
@@ -317,6 +317,14 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(systemPrompt).toContain('«sí»');
     expect(systemPrompt).toContain('«no»');
     expect(systemPrompt).toContain('pasando la `modalidad`');
+  });
+
+  it('la modalidad y duración se dicen UNA sola vez — no se repiten al ofrecer días', () => {
+    // Feedback tras llamada de prueba: encimar la coletilla de duración/modalidad
+    // con la oferta de días saturaba la frase y el prospecto no captaba el día.
+    expect(systemPrompt).toContain('UNA sola vez en toda la llamada');
+    expect(systemPrompt).toContain('NUNCA la repitas después — ni al ofrecer los días');
+    expect(systemPrompt).toContain('NO encimes la modalidad ni la duración aquí');
   });
 
   it('la regla de falla técnica prohíbe el silencio tras un error de herramienta', () => {
@@ -366,8 +374,11 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     // por eso la pregunta va antes de ejecutarla (los flags viajan en la tool).
     expect(systemPrompt).toContain('SIEMPRE antes de ejecutar `agendar_cita`');
     expect(systemPrompt).toContain(
-      '¿Le gustaría recibir la invitación por WhatsApp a este mismo número?',
+      '¿Le gustaría recibir la confirmación de su cita por WhatsApp a este mismo número?',
     );
+    // "invitación" confunde al prospecto (feedback tras llamada de prueba) —
+    // el mensaje de WhatsApp se llama "confirmación" en todo el prompt.
+    expect(systemPrompt).not.toContain('invitación');
     // Captura del alterno: dictado despacio + relectura en bloques + confirmación.
     expect(systemPrompt).toContain('pausa cada dos o tres dígitos');
     expect(systemPrompt).toContain('Le repito el número para confirmar');
@@ -386,7 +397,7 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
 
   it('el folio NUNCA se dice por voz: cero instrucciones de dictarlo en todo el prompt', () => {
     // El valor del folio viaja únicamente en el WhatsApp; Sofía puede anunciar
-    // que la invitación llegará con folio, pero jamás pronunciarlo.
+    // que la confirmación llegará con folio, pero jamás pronunciarlo.
     expect(systemPrompt).toContain('El folio NUNCA se dice por voz');
     expect(systemPrompt).toContain('viaja únicamente en el WhatsApp');
     // Restos de los guiones viejos que pedían dictarlo, eliminados:
