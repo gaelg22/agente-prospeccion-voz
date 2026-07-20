@@ -279,6 +279,19 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(systemPrompt).not.toContain('protección de vida, gastos médicos o ahorro');
   });
 
+  it('la nueva apertura sigue tras confirmar identidad, e identifica a Sofía en los primeros segundos', () => {
+    // Pulido tras llamada de prueba: el firstMessage mecánico solo confirma
+    // identidad; esta es la frase que dice el LLM justo después, con el gancho.
+    const gancho =
+      `Qué gusto, doctor. Le llama ${mockConfig.AGENTE_NOMBRE}, asistente virtual de ${mockConfig.EMPRESA_NOMBRE}. ` +
+      'Le marco por algo que muchos profesionistas como usted están aprovechando y que puede interesarle — ¿me permite treinta segundos?';
+    expect(systemPrompt).toContain(gancho);
+    // La identificación como asistente virtual sigue viva, en los primeros
+    // segundos de la llamada — no se elimina ni se retrasa a un paso posterior.
+    expect(systemPrompt.indexOf(gancho)).toBeLessThan(systemPrompt.indexOf('Paso 2'));
+    expect(systemPrompt).toContain('nunca la omitas ni la retrases');
+  });
+
   it('el pitch usa el encuadre del asesor y la línea que desarma la venta', () => {
     // Material del asesor (jul 2026): encuadre de temas + "no compre nada".
     expect(systemPrompt).toContain(
@@ -523,11 +536,13 @@ describe('buildAssistant — assistant transient completo', () => {
     expect(assistant.backgroundSound).toBe('off');
   });
 
-  it('lleva firstMessage en español con la identidad y la variable del prospecto', () => {
+  it('firstMessage SOLO confirma identidad, sin identificarse todavía (eso lo dice el LLM después)', () => {
+    // La identificación vive en el gancho del Paso 1 del system prompt, no en
+    // el firstMessage: si estuviera en ambos, el prospecto la oiría dos veces.
     const assistant = buildAssistant();
-    expect(assistant.firstMessage).toContain(mockConfig.AGENTE_NOMBRE);
-    expect(assistant.firstMessage).toContain(mockConfig.EMPRESA_NOMBRE);
     expect(assistant.firstMessage).toContain('{{prospecto_nombre}}');
+    expect(assistant.firstMessage).not.toContain(mockConfig.AGENTE_NOMBRE);
+    expect(assistant.firstMessage).not.toContain(mockConfig.EMPRESA_NOMBRE);
   });
 
   it('el nombre del assistant también sale de AGENTE_NOMBRE', () => {
