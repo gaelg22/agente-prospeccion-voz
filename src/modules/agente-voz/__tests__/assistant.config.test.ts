@@ -292,19 +292,21 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(systemPrompt).toContain('siempre "uno de nuestros asesores"');
   });
 
-  it('pregunta mañana/tarde ANTES de la oferta y el tramo elegido filtra los horarios', () => {
-    const pregunta = '¿Cuándo le queda mejor, por la mañana o por la tarde?';
+  it('ofrece los días ANTES de preguntar mañana/tarde, y la franja elegida filtra los horarios', () => {
+    const ofertaDias = 'Primera oferta — los días, todavía sin hora';
+    const pregunta = '¿Por la mañana o por la tarde?';
+    expect(systemPrompt).toContain(ofertaDias);
     expect(systemPrompt).toContain(pregunta);
-    // La preferencia se pregunta antes de ofrecer cualquier horario.
-    expect(systemPrompt.indexOf(pregunta)).toBeLessThan(systemPrompt.indexOf('Primera oferta'));
-    expect(systemPrompt.indexOf(pregunta)).toBeLessThan(
-      systemPrompt.indexOf('Ejecuta `verificar_disponibilidad`'),
+    // El día se ofrece antes de preguntar la franja.
+    expect(systemPrompt.indexOf('Ejecuta `verificar_disponibilidad`')).toBeLessThan(
+      systemPrompt.indexOf(ofertaDias),
     );
-    // El corte del tramo es a las 14:00 y la preferencia nunca se ignora.
+    expect(systemPrompt.indexOf(ofertaDias)).toBeLessThan(systemPrompt.indexOf(pregunta));
+    // El corte de franja es a las 14:00 y la preferencia nunca se ignora.
     expect(systemPrompt).toContain('mañana = horas hasta las 14:00');
     expect(systemPrompt).toContain('tarde = de las 14:00 en adelante');
-    expect(systemPrompt).toContain('NUNCA preguntes la preferencia y luego la ignores');
-    // Sin espacios en el tramo pedido → se dice y se ofrece la alternativa.
+    expect(systemPrompt).toContain('NUNCA preguntes la franja y luego la ignores');
+    // Sin espacios en la franja pedida → se dice y se ofrece la alternativa.
     expect(systemPrompt).toContain('el otro tramo de ese mismo día');
   });
 
