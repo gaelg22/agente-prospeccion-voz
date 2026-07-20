@@ -253,3 +253,46 @@ describe('AgendaService.book — A4: revalidación de disponibilidad', () => {
     expect((err as Error).message).toContain('2026-08-03T17:00:00');
   });
 });
+
+// ─── Fix #1: DNC guard en book() — segunda línea de defensa ──────────────────
+// handleAgendarCita ya rechaza antes de llamar a book(); este test cubre que
+// book() también protege por si se llama directamente (p. ej. desde un job de
+// reconciliación futuro). noContactar=true → throw, sin evento ni WhatsApp.
+
+describe('AgendaService.book — Fix #1: lead con noContactar=true rechazado sin evento ni WhatsApp', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLeadService.transition.mockResolvedValue({});
+  });
+
+  it('noContactar=true → lanza error DNC, sin crear evento en Calendar ni enviar WhatsApp', async () => {
+    mockLeadService.findById.mockResolvedValue({
+      ...leadAcepto,
+      noContactar: true,
+    });
+    const { agenda, createEvent, sendBookingConfirmation, sendAdvisorNotice } = setup();
+
+    await expect(agenda.book('lead-1', '2026-08-03T17:00:00')).rejects.toThrow(/DNC/);
+
+    // Sin evento en Calendar
+    expect(createEvent).not.toHaveBeenCalled();
+    // Sin notificación al prospecto ni al asesor
+    expect(sendBookingConfirmation).not.toHaveBeenCalled();
+    expect(sendAdvisorNotice).not.toHaveBeenCalled();
+    // Sin cambio de status
+    expect(mockLeadService.transition).not.toHaveBeenCalled();
+  });
+
+  it('noContactar=false (o ausente) → flujo normal continúa', async () => {
+    mockLeadService.findById.mockResolvedValue({
+      ...leadAcepto,
+      noContactar: false,
+    });
+    const { agenda, createEvent } = setup();
+
+    await agenda.book('lead-1', '2026-08-03T17:00:00');
+
+    expect(createEvent).toHaveBeenCalledOnce();
+    expect(mockLeadService.transition).toHaveBeenCalledWith('lead-1', 'agendado', expect.anything());
+  });
+});

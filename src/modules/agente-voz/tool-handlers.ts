@@ -71,6 +71,26 @@ export const handleRegistrarResultado: ToolHandler = async (toolCall, ctx) => {
     };
   }
 
+  // Idempotencia #2: acepto→acepto no es un edge legal en la máquina de estados
+  // (acepto solo avanza a agendado/listo_llamar/no_contactable). Si el lead ya
+  // está en acepto y el desenlace reportado también es acepto, no hay nada que
+  // transicionar — agendar_cita ya está en curso o se retomará vía reconciliación.
+  if (desenlace === 'acepto' && lead.status === 'acepto') {
+    logger.info(
+      { leadId, status: lead.status },
+      'registrar_resultado: lead ya en acepto — respuesta idempotente, sin transición',
+    );
+    return {
+      toolCallId: toolCall.id,
+      result: JSON.stringify({
+        ok: true,
+        nuevoStatus: 'acepto',
+        nota: 'lead ya en acepto — sin cambio de status',
+        debeReintentar: false,
+      }),
+    };
+  }
+
   const outcome = mapearDesenlace(desenlace, lead.intentos);
 
   await LeadService.transition(lead._id, outcome.nuevoStatus, {
@@ -207,6 +227,21 @@ export const handleAgendarCita: ToolHandler = async (toolCall, ctx) => {
       return {
         toolCallId: toolCall.id,
         result: JSON.stringify({ ok: false, error: 'Lead no encontrado' }),
+      };
+    }
+
+    // ── Fix #1: rechazo DNC — el lead solicitó no ser contactado ─────────────
+    // El flag noContactar es independiente del status: puede estar marcado en
+    // cualquier punto del ciclo. Si está activo, rechazar el agendado sin crear
+    // evento en Calendar ni enviar WhatsApp, e informar al modelo.
+    if (lead.noContactar) {
+      logger.warn({ leadId }, 'agendar_cita: lead marcado DNC — agendado rechazado');
+      return {
+        toolCallId: toolCall.id,
+        result: JSON.stringify({
+          ok: false,
+          error: 'El lead ha solicitado no ser contactado (DNC) — no se puede agendar la cita',
+        }),
       };
     }
 

@@ -391,3 +391,98 @@ describe('handleMarcarNoContactar — A3: DNC forzoso', () => {
     );
   });
 });
+
+// ─── Tests Fix #1: DNC ignorado en agendado ──────────────────────────────────
+
+describe('handleAgendarCita — Fix #1: lead con noContactar=true rechazado sin evento ni WhatsApp', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLeadModel.updateOne.mockResolvedValue({});
+  });
+
+  it('noContactar=true → ok:false, sin llamar a book(), sin evento en Calendar', async () => {
+    mockLeadService.findById.mockResolvedValue({
+      _id: 'lead-123',
+      status: 'llamado',
+      intentos: 1,
+      noContactar: true,
+    });
+
+    const res = await handleAgendarCita(toolCallAgendar({ consienteWhatsapp: true }), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean; error: string };
+
+    expect(body.ok).toBe(false);
+    expect(body.error).toMatch(/DNC/i);
+
+    // book() no debe haberse llamado — sin evento en Calendar, sin WhatsApp
+    expect(mockBook).not.toHaveBeenCalled();
+    // La máquina de estados tampoco se toca
+    expect(mockLeadService.transition).not.toHaveBeenCalled();
+  });
+
+  it('noContactar=false → flujo normal (book llamado)', async () => {
+    mockLeadService.findById
+      .mockResolvedValueOnce({ _id: 'lead-123', status: 'llamado', intentos: 1, noContactar: false })
+      .mockResolvedValueOnce({ _id: 'lead-123', status: 'agendado', cita: { googleEventId: 'evt-ok', meetUrl: null } });
+    mockBook.mockResolvedValue(undefined);
+
+    const res = await handleAgendarCita(toolCallAgendar(), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean };
+
+    expect(body.ok).toBe(true);
+    expect(mockBook).toHaveBeenCalledOnce();
+  });
+});
+
+// ─── Tests Fix #2: registrar_resultado(acepto) idempotente ───────────────────
+
+describe('handleRegistrarResultado — Fix #2: idempotencia acepto sobre lead ya en acepto', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('lead ya en acepto + desenlace acepto → ok idempotente, sin transición', async () => {
+    mockLeadService.findById.mockResolvedValue({
+      _id: 'lead-123',
+      status: 'acepto',
+      intentos: 1,
+    });
+
+    const res = await handleRegistrarResultado(toolCallRegistrar('acepto'), CTX);
+    const body = JSON.parse(res.result) as {
+      ok: boolean;
+      nuevoStatus: string;
+      nota: string;
+      debeReintentar: boolean;
+    };
+
+    expect(body.ok).toBe(true);
+    expect(body.nuevoStatus).toBe('acepto');
+    expect(body.debeReintentar).toBe(false);
+
+    // NO debe intentar la transición (acepto→acepto no es un edge legal)
+    expect(mockLeadService.transition).not.toHaveBeenCalled();
+    expect(mockColaService.scheduleRetry).not.toHaveBeenCalled();
+  });
+
+  it('lead en llamado + desenlace acepto → transición normal a acepto', async () => {
+    mockLeadService.findById.mockResolvedValue({
+      _id: 'lead-123',
+      status: 'llamado',
+      intentos: 1,
+    });
+    mockLeadService.transition.mockResolvedValue({ status: 'acepto' });
+
+    const res = await handleRegistrarResultado(toolCallRegistrar('acepto'), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean; nuevoStatus: string };
+
+    expect(body.ok).toBe(true);
+    expect(body.nuevoStatus).toBe('acepto');
+    expect(mockLeadService.transition).toHaveBeenCalledWith(
+      'lead-123',
+      'acepto',
+      expect.anything(),
+    );
+  });
+});
+

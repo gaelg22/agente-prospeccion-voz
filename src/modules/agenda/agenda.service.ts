@@ -75,6 +75,15 @@ export class AgendaService {
     const lead = await LeadService.findById(String(leadId));
     if (!lead) throw new Error(`Lead not found: ${String(leadId)}`);
 
+    // ── Fix #1: DNC guard — rechazar sin crear evento ni enviar WhatsApp ──────
+    // El flag noContactar es ortogonal al status: puede estar en true aunque el
+    // lead siga en 'llamado' o 'acepto' (se marcó DNC durante la llamada pero
+    // el webhook aún no completó la transición de status). book() nunca debe
+    // crear un evento de Calendar ni disparar WhatsApp para un lead DNC.
+    if (lead.noContactar) {
+      throw new Error(`Lead ${String(leadId)} está marcado como DNC — no se puede agendar`);
+    }
+
     if (lead.status !== 'acepto' && lead.status !== 'llamado') {
       throw new Error(`Lead must be in 'llamado' or 'acepto' status to book. Current: ${lead.status}`);
     }
