@@ -418,11 +418,14 @@ export const SERVER_MESSAGES = [
 export function buildAssistant(): VapiTransientAssistant {
   return {
     name: config.AGENTE_NOMBRE,
-    // Apertura del Paso 1 del prompt: SOLO confirma identidad, sin identificarse
-    // todavía — la identificación va en el gancho que dice el LLM justo después
-    // de la confirmación (Paso 1 del system prompt), para no repetirla dos veces.
+    // Apertura B completa (gancho + identificación + confirmación de identidad):
+    // va en el firstMessage porque este se oye INSTANTÁNEO, sin esperar al LLM.
+    // El Paso 1 del system prompt sabe que esto ya se dijo y NO lo repite.
     // {{prospecto_nombre}} lo sustituye Vapi con assistantOverrides.variableValues.
-    firstMessage: `Hola, muy buenas. ¿Hablo con {{prospecto_nombre}}?`,
+    firstMessage:
+      `Qué gusto, ¿hablo con {{prospecto_nombre}}? Le llama ${config.AGENTE_NOMBRE}, ` +
+      `asistente virtual de ${config.EMPRESA_NOMBRE}. Le marco por algo que muchos ` +
+      'profesionistas como usted están aprovechando y que puede interesarle.',
     model: {
       provider: 'anthropic',
       model: config.VAPI_LLM_MODEL,
