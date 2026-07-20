@@ -62,7 +62,8 @@ describe('AgendaService.book — duración del evento por modalidad', () => {
     expect(params.startIso).toBe('2026-08-03T17:00:00');
     expect(params.endIso).toBe('2026-08-03T18:00:00'); // +1 h
     expect(params.withMeet).toBe(true);
-    expect(sendBookingConfirmation.mock.calls[0]?.[1]).toMatchObject({ modalidad: 'virtual' });
+    const confirmArgs1 = sendBookingConfirmation.mock.calls[0] as Parameters<typeof sendBookingConfirmation>;
+    expect(confirmArgs1[1]).toMatchObject({ modalidad: 'virtual' });
   });
 
   it('presencial: evento de 2 h y NO pide Meet', async () => {
@@ -73,7 +74,8 @@ describe('AgendaService.book — duración del evento por modalidad', () => {
     expect(params.startIso).toBe('2026-08-03T17:00:00');
     expect(params.endIso).toBe('2026-08-03T19:00:00'); // +2 h
     expect(params.withMeet).toBe(false);
-    expect(sendBookingConfirmation.mock.calls[0]?.[1]).toMatchObject({ modalidad: 'presencial' });
+    const confirmArgs2 = sendBookingConfirmation.mock.calls[0] as Parameters<typeof sendBookingConfirmation>;
+    expect(confirmArgs2[1]).toMatchObject({ modalidad: 'presencial' });
   });
 });
 
@@ -96,7 +98,8 @@ describe('AgendaService.book — consentimiento WhatsApp', () => {
     // El asesor SIEMPRE recibe el aviso; sin consentimiento, con la marca de
     // contactar directamente al prospecto para hacerle llegar los datos.
     expect(sendAdvisorNotice).toHaveBeenCalledOnce();
-    expect(sendAdvisorNotice.mock.calls[0]?.[1]).toMatchObject({
+    const advisorArgs1 = sendAdvisorNotice.mock.calls[0] as Parameters<typeof sendAdvisorNotice>;
+    expect(advisorArgs1[1]).toMatchObject({
       folio: 'evt-1',
       contactarDirecto: true,
     });
@@ -107,7 +110,8 @@ describe('AgendaService.book — consentimiento WhatsApp', () => {
     await agenda.book('lead-1', '2026-08-03T17:00:00', 'virtual', { enviar: false });
 
     expect(sendBookingConfirmation).not.toHaveBeenCalled();
-    expect(sendAdvisorNotice.mock.calls[0]?.[1]).toMatchObject({ contactarDirecto: true });
+    const advisorArgs2 = sendAdvisorNotice.mock.calls[0] as Parameters<typeof sendAdvisorNotice>;
+    expect(advisorArgs2[1]).toMatchObject({ contactarDirecto: true });
   });
 
   it('con consentimiento sin alterno: ambos envíos; el del prospecto sin telefonoDestino', async () => {
@@ -115,10 +119,11 @@ describe('AgendaService.book — consentimiento WhatsApp', () => {
     await agenda.book('lead-1', '2026-08-03T17:00:00', 'virtual', { enviar: true });
 
     expect(sendBookingConfirmation).toHaveBeenCalledOnce();
-    const cita = sendBookingConfirmation.mock.calls[0]?.[1] as Record<string, unknown>;
-    expect(cita).not.toHaveProperty('telefonoDestino');
+    const confirmArgs3 = sendBookingConfirmation.mock.calls[0] as Parameters<typeof sendBookingConfirmation>;
+    expect(confirmArgs3[1]).not.toHaveProperty('telefonoDestino');
     expect(sendAdvisorNotice).toHaveBeenCalledOnce();
-    expect(sendAdvisorNotice.mock.calls[0]?.[1]).toMatchObject({
+    const advisorArgs3 = sendAdvisorNotice.mock.calls[0] as Parameters<typeof sendAdvisorNotice>;
+    expect(advisorArgs3[1]).toMatchObject({
       folio: 'evt-1',
       contactarDirecto: false,
     });
@@ -132,7 +137,8 @@ describe('AgendaService.book — consentimiento WhatsApp', () => {
     });
 
     expect(sendBookingConfirmation).toHaveBeenCalledOnce();
-    expect(sendBookingConfirmation.mock.calls[0]?.[1]).toMatchObject({
+    const confirmArgs4 = sendBookingConfirmation.mock.calls[0] as Parameters<typeof sendBookingConfirmation>;
+    expect(confirmArgs4[1]).toMatchObject({
       telefonoDestino: '+524921112233',
     });
   });
