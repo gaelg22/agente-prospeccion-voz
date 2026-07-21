@@ -279,19 +279,28 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(systemPrompt).not.toContain('protección de vida, gastos médicos o ahorro');
   });
 
-  it('el prompt YA NO repite la apertura: el Paso 1 remite al firstMessage mecánico', () => {
-    // La apertura B (gancho + identificación + confirmación) se movió al
-    // firstMessage porque este se oye instantáneo, sin esperar al LLM. El
-    // system prompt solo debe explicar que ya se dijo, sin volver a hablarla.
-    const gancho =
-      `Qué gusto, ¿hablo con {{prospecto_nombre}}? Le llama ${mockConfig.AGENTE_NOMBRE}, ` +
-      `asistente virtual de ${mockConfig.EMPRESA_NOMBRE}. Le marco por algo que muchos ` +
-      'profesionistas como usted están aprovechando y que puede interesarle.';
-    expect(systemPrompt).toContain(gancho);
+  it('el prompt parte la apertura en dos turnos: firstMessage corto + identificación del modelo', () => {
+    // 20 jul: la apertura completa de corrido (confirmación + identificación +
+    // gancho) en el firstMessage no le daba tiempo al prospecto de contestar
+    // ("¿quién habla?"). Ahora el firstMessage SOLO saluda y confirma
+    // identidad; el modelo dice la identificación + el gancho en su primer
+    // turno hablado, DESPUÉS de que el prospecto confirma que es él.
+    const saludoSistema = 'Qué gusto, muy buenas. ¿Hablo con {{prospecto_nombre}}?';
+    const identificacion =
+      `Le llama ${mockConfig.AGENTE_NOMBRE}, asistente virtual de ${mockConfig.EMPRESA_NOMBRE}. ` +
+      'Le marco por algo que muchos profesionistas como usted están aprovechando y que puede interesarle.';
+    expect(systemPrompt).toContain(saludoSistema);
+    expect(systemPrompt).toContain(identificacion);
     expect(systemPrompt).toContain('NO repitas ni parafrasees nada de esto');
     // Sigue viva la referencia a la regla de compliance de identificarse pronto.
     expect(systemPrompt).toContain('sección 3.1');
-    expect(systemPrompt.indexOf(gancho)).toBeLessThan(systemPrompt.indexOf('Paso 2'));
+    // El saludo del sistema va antes de la identificación del modelo, y esta
+    // antes del aviso de privacidad + los treinta segundos (Paso 2).
+    expect(systemPrompt.indexOf(saludoSistema)).toBeLessThan(systemPrompt.indexOf(identificacion));
+    expect(systemPrompt.indexOf(identificacion)).toBeLessThan(systemPrompt.indexOf('**Paso 2 —'));
+    // La identificación como asistente virtual aparece UNA sola vez en el prompt.
+    const veces = systemPrompt.split(`asistente virtual de ${mockConfig.EMPRESA_NOMBRE}`).length - 1;
+    expect(veces).toBe(1);
   });
 
   it('el pitch usa el encuadre del asesor y la línea que desarma la venta', () => {
@@ -538,26 +547,25 @@ describe('buildAssistant — assistant transient completo', () => {
     expect(assistant.backgroundSound).toBe('off');
   });
 
-  it('firstMessage lleva la apertura B completa: gancho + identificación + confirmación', () => {
-    // Pulido tras llamada de prueba: la apertura completa va en el firstMessage
-    // porque este se oye INSTANTÁNEO, sin esperar la primera respuesta del LLM.
-    // AGENTE_NOMBRE/EMPRESA_NOMBRE deben venir de config, nunca hardcodeados
-    // (si alguien los hardcodea, el mock con nombres distintos lo delata).
+  it('firstMessage SOLO saluda y confirma identidad — corto, para que el prospecto conteste', () => {
+    // 20 jul: la apertura completa de corrido (confirmación + identificación +
+    // gancho) no le daba tiempo al prospecto de responder y lo confundía. El
+    // firstMessage ahora corta ahí; la identificación + el gancho los dice el
+    // modelo DESPUÉS de que el prospecto confirma (Paso 1 del system prompt).
     const assistant = buildAssistant();
+    expect(assistant.firstMessage).toBe('Qué gusto, muy buenas. ¿Hablo con {{prospecto_nombre}}?');
     expect(assistant.firstMessage).toContain('{{prospecto_nombre}}');
-    expect(assistant.firstMessage).toContain(mockConfig.AGENTE_NOMBRE);
-    expect(assistant.firstMessage).toContain(mockConfig.EMPRESA_NOMBRE);
-    expect(assistant.firstMessage).toContain('¿hablo con');
-    expect(assistant.firstMessage).toContain('asistente virtual de');
+    // Ya NO identifica ni engancha: eso vive únicamente en el system prompt.
+    expect(assistant.firstMessage).not.toContain('asistente virtual');
+    expect(assistant.firstMessage).not.toContain(mockConfig.AGENTE_NOMBRE);
+    expect(assistant.firstMessage).not.toContain(mockConfig.EMPRESA_NOMBRE);
   });
 
-  it('la identificación NO se repite entre firstMessage y el system prompt', () => {
-    // Si ambos dijeran "asistente virtual de <empresa>", el prospecto la
-    // oiría dos veces seguidas — el prompt debe remitir al firstMessage.
+  it('la identificación vive UNA sola vez, en el system prompt — ya no viaja en el firstMessage', () => {
     const assistant = buildAssistant();
     const vecesEnPrompt = systemPrompt.split(`asistente virtual de ${mockConfig.EMPRESA_NOMBRE}`).length - 1;
-    expect(vecesEnPrompt).toBe(1); // una sola mención, dentro de la cita del firstMessage en Paso 1
-    expect(assistant.firstMessage).toContain(`asistente virtual de ${mockConfig.EMPRESA_NOMBRE}`);
+    expect(vecesEnPrompt).toBe(1);
+    expect(assistant.firstMessage).not.toContain(`asistente virtual de ${mockConfig.EMPRESA_NOMBRE}`);
   });
 
   it('el nombre del assistant también sale de AGENTE_NOMBRE', () => {
