@@ -364,9 +364,9 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     // técnica" y colgaba en vez de ofrecer otra hora. Ahora el codigo los
     // distingue y el prompt reacciona distinto a cada uno.
     expect(systemPrompt).toContain('SLOT_OCUPADO');
-    expect(systemPrompt).toContain('esto NO es una falla técnica');
+    expect(systemPrompt).toContain('esto NO es una falla técnica, es situación normal');
     expect(systemPrompt).toContain(
-      '¿Le parece otra hora ese mismo día, o prefiere otro día?',
+      'Justo esa hora se acaba de ocupar, doctor(a). Déjeme ver qué otras horas hay.',
     );
     // Tras el slot ocupado, vuelve a consultar la agenda (cambió) en vez de
     // reofertar horarios ya obsoletos.

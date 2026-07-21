@@ -255,10 +255,12 @@ describe('handleAgendarCita — slot ocupado: distinto de una falla técnica rea
     mockLeadModel.updateOne.mockResolvedValue({});
   });
 
-  it('SlotNoDisponibleError → codigo: SLOT_OCUPADO (no ERROR_TECNICO), lead sin transición', async () => {
-    // Antes ambos casos (slot ocupado vs Calendar caído) devolvían el mismo
-    // { ok:false, error } genérico y el modelo aplicaba la regla de falla
-    // técnica para los dos — colgando cuando en realidad solo debía reofertar.
+  it('SlotNoDisponibleError → codigo: SLOT_OCUPADO, sin transición ni reintento — el lead se queda en llamado', async () => {
+    // Bug reportado dos veces: (a) Sofía se disculpaba y colgaba, (b) el
+    // backend marcaba error_tecnico y programaba reintento. Un slot ocupado
+    // es normal, no una falla — agendar_cita NO debe tocar la máquina de
+    // estados ni la cola de reintentos por su cuenta; el lead sigue 'llamado'
+    // porque la llamada sigue viva y Sofía va a reofertar en el mismo turno.
     const lead = { _id: 'lead-123', status: 'llamado', intentos: 1, ultimaLlamada: new Date() };
     mockLeadService.findById.mockResolvedValue(lead);
     mockBook.mockRejectedValue(new SlotNoDisponibleError('2026-08-03T17:00:00'));
@@ -269,9 +271,11 @@ describe('handleAgendarCita — slot ocupado: distinto de una falla técnica rea
     expect(body.ok).toBe(false);
     expect(body.codigo).toBe('SLOT_OCUPADO');
     expect(body.codigo).not.toBe('ERROR_TECNICO');
-    // Igual que con cualquier fallo de book(): el lead no se toca aquí, sigue
-    // recuperable en 'llamado' (el modelo debe reofertar, no cerrar la llamada).
+    // Sin transición de status (el lead sigue en 'llamado', no listo_llamar
+    // ni no_contactable) y sin reintento programado en la cola — ninguno de
+    // los efectos de error_tecnico ocurre en este camino.
     expect(mockLeadService.transition).not.toHaveBeenCalled();
+    expect(mockColaService.scheduleRetry).not.toHaveBeenCalled();
   });
 
   it('error genérico de Calendar → codigo: ERROR_TECNICO', async () => {
