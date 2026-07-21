@@ -358,6 +358,26 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     expect(systemPrompt).toContain('el silencio está prohibido');
   });
 
+  it('slot ocupado (codigo SLOT_OCUPADO) reofrece en vez de aplicar la falla técnica', () => {
+    // Bug 21 jul: agendar_cita con slot ocupado (A4) caía en el mismo camino
+    // que un error real de Calendar — el modelo se disculpaba por "falla
+    // técnica" y colgaba en vez de ofrecer otra hora. Ahora el codigo los
+    // distingue y el prompt reacciona distinto a cada uno.
+    expect(systemPrompt).toContain('SLOT_OCUPADO');
+    expect(systemPrompt).toContain('esto NO es una falla técnica');
+    expect(systemPrompt).toContain(
+      '¿Le parece otra hora ese mismo día, o prefiere otro día?',
+    );
+    // Tras el slot ocupado, vuelve a consultar la agenda (cambió) en vez de
+    // reofertar horarios ya obsoletos.
+    expect(systemPrompt).toContain('Ejecuta `verificar_disponibilidad` de nuevo');
+    // El error real de Calendar/red sigue el camino viejo de disculpa + colgado.
+    expect(systemPrompt).toContain('ERROR_TECNICO');
+    expect(systemPrompt).toContain(
+      '`agendar_cita` con `codigo: "SLOT_OCUPADO"` NO entra en esta regla',
+    );
+  });
+
   it('la sección 4 prohíbe los rellenos de espera POR CLASE, no por frases exactas', () => {
     // Llamada 019f57c6 (12 jul): el modelo esquivó la lista de frases exactas
     // parafraseando ("Esto solo tomará un segundo"). La prohibición ahora es

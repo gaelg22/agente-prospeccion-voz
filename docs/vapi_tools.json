@@ -46,7 +46,7 @@
     ],
     "function": {
       "name": "agendar_cita",
-      "description": "Agenda la cita en el día y hora que el prospecto confirmó de viva voz, en la modalidad elegida (videollamada o presencial). Solo llamar con día y hora ya aceptados por la persona, ofrecidos por verificar_disponibilidad, y DESPUÉS de preguntarle si desea recibir la invitación por WhatsApp. Regresa el folio de confirmación y whatsappEnviado (si es false, di que un asesor se comunicará directamente con la persona; el folio NUNCA se dice por voz).",
+      "description": "Agenda la cita en el día y hora que el prospecto confirmó de viva voz, en la modalidad elegida (videollamada o presencial). Solo llamar con día y hora ya aceptados por la persona, ofrecidos por verificar_disponibilidad, y DESPUÉS de preguntarle si desea recibir la invitación por WhatsApp. Regresa el folio de confirmación y whatsappEnviado (si es false, di que un asesor se comunicará directamente con la persona; el folio NUNCA se dice por voz). Si falla, regresa \"codigo\": \"SLOT_OCUPADO\" (el horario se ocupó justo antes de confirmar — no es falla técnica, vuelve a ofrecer otra hora con verificar_disponibilidad) o \"ERROR_TECNICO\" (falla real de Calendar/red — aplica la disculpa técnica).",
       "parameters": {
         "type": "object",
         "properties": {

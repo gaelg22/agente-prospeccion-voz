@@ -4,7 +4,7 @@ import { Lead } from '../leads/lead.schema';
 import { isTerminal, InvalidTransitionError } from '../leads/lead.transitions';
 import { ColaService } from '../cola/cola.service';
 import { mapearDesenlace } from './call-outcome.handler';
-import { AgendaService } from '../agenda/agenda.service';
+import { AgendaService, SlotNoDisponibleError } from '../agenda/agenda.service';
 import { normalizePhone } from '../../lib/phone';
 import { CalendarClient } from '../agenda/calendar.client';
 import { getNextDaysWithSlots } from '../agenda/slots';
@@ -326,11 +326,27 @@ export const handleAgendarCita: ToolHandler = async (toolCall, ctx) => {
       }),
     };
   } catch (err) {
+    // Slot ocupado NO es una falla técnica: el prospecto eligió un horario que
+    // se ocupó entre verificar_disponibilidad y la confirmación (o entre dos
+    // llamadas en paralelo). El `codigo` distingue este caso del error real de
+    // Calendar/red para que el modelo reoferte en vez de disculparse y colgar
+    // (bug del 21 jul: ambos caían en el mismo camino de "detalle técnico").
+    if (err instanceof SlotNoDisponibleError) {
+      logger.warn(
+        { leadId, fecha, hora, slotIso: err.slotIso },
+        'agendar_cita: slot ocupado — no es falla técnica, el modelo debe reofertar',
+      );
+      return {
+        toolCallId: toolCall.id,
+        result: JSON.stringify({ ok: false, codigo: 'SLOT_OCUPADO', error: err.message }),
+      };
+    }
+
     const msg = err instanceof Error ? err.message : String(err);
     logger.error({ err, leadId, fecha, hora }, 'agendar_cita: error al agendar');
     return {
       toolCallId: toolCall.id,
-      result: JSON.stringify({ ok: false, error: msg }),
+      result: JSON.stringify({ ok: false, codigo: 'ERROR_TECNICO', error: msg }),
     };
   }
 };

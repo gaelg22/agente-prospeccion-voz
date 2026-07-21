@@ -39,10 +39,21 @@ vi.mock('../../leads/lead.schema', async (importOriginal) => {
 });
 
 // AgendaService.book — se mockea para simular éxito/fallo de Calendar.
+// SlotNoDisponibleError se reimplementa igual que en el módulo real: el
+// handler la distingue por `instanceof`, así que el mock debe ser una clase
+// real (no un objeto plano) para que esa comprobación siga funcionando.
 const mockBook = vi.hoisted(() => vi.fn());
 vi.mock('../../agenda/agenda.service', () => ({
   AgendaService: class {
     book = mockBook;
+  },
+  SlotNoDisponibleError: class SlotNoDisponibleError extends Error {
+    slotIso: string;
+    constructor(slotIso: string) {
+      super(`El slot ${slotIso} ya no está disponible en Calendar`);
+      this.name = 'SlotNoDisponibleError';
+      this.slotIso = slotIso;
+    }
   },
 }));
 
@@ -52,6 +63,7 @@ import {
   handleAgendarCita,
 } from '../tool-handlers';
 import { InvalidTransitionError } from '../../leads/lead.transitions';
+import { SlotNoDisponibleError } from '../../agenda/agenda.service';
 import type { VapiToolCall } from '../vapi.zod';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -176,8 +188,15 @@ describe('handleAgendarCita — C1: fallo de Calendar deja al lead recuperable',
 
     // 1. agendar_cita falla
     const resAgendar = await handleAgendarCita(toolCallAgendar(), CTX);
-    const bodyAgendar = JSON.parse(resAgendar.result) as { ok: boolean; error: string };
+    const bodyAgendar = JSON.parse(resAgendar.result) as {
+      ok: boolean;
+      codigo: string;
+      error: string;
+    };
     expect(bodyAgendar.ok).toBe(false);
+    // Falla real de Calendar (no un slot ocupado) → ERROR_TECNICO, el código
+    // que dispara la regla de disculpa técnica + colgado en el prompt.
+    expect(bodyAgendar.codigo).toBe('ERROR_TECNICO');
 
     // El handler NO transiciona a 'acepto' por su cuenta — eso ocurre dentro
     // de book() solo después de crear el evento. El lead sigue en 'llamado'.
@@ -225,6 +244,45 @@ describe('handleAgendarCita — C1: fallo de Calendar deja al lead recuperable',
     });
     // Toda transición vive en book(); el handler no toca la máquina de estados.
     expect(mockLeadService.transition).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Bug 21 jul: slot ocupado NO es falla técnica ────────────────────────────
+
+describe('handleAgendarCita — slot ocupado: distinto de una falla técnica real', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockLeadModel.updateOne.mockResolvedValue({});
+  });
+
+  it('SlotNoDisponibleError → codigo: SLOT_OCUPADO (no ERROR_TECNICO), lead sin transición', async () => {
+    // Antes ambos casos (slot ocupado vs Calendar caído) devolvían el mismo
+    // { ok:false, error } genérico y el modelo aplicaba la regla de falla
+    // técnica para los dos — colgando cuando en realidad solo debía reofertar.
+    const lead = { _id: 'lead-123', status: 'llamado', intentos: 1, ultimaLlamada: new Date() };
+    mockLeadService.findById.mockResolvedValue(lead);
+    mockBook.mockRejectedValue(new SlotNoDisponibleError('2026-08-03T17:00:00'));
+
+    const res = await handleAgendarCita(toolCallAgendar(), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean; codigo: string; error: string };
+
+    expect(body.ok).toBe(false);
+    expect(body.codigo).toBe('SLOT_OCUPADO');
+    expect(body.codigo).not.toBe('ERROR_TECNICO');
+    // Igual que con cualquier fallo de book(): el lead no se toca aquí, sigue
+    // recuperable en 'llamado' (el modelo debe reofertar, no cerrar la llamada).
+    expect(mockLeadService.transition).not.toHaveBeenCalled();
+  });
+
+  it('error genérico de Calendar → codigo: ERROR_TECNICO', async () => {
+    mockLeadService.findById.mockResolvedValue({ _id: 'lead-123', status: 'llamado' });
+    mockBook.mockRejectedValue(new Error('ECONNREFUSED'));
+
+    const res = await handleAgendarCita(toolCallAgendar(), CTX);
+    const body = JSON.parse(res.result) as { ok: boolean; codigo: string };
+
+    expect(body.ok).toBe(false);
+    expect(body.codigo).toBe('ERROR_TECNICO');
   });
 });
 
