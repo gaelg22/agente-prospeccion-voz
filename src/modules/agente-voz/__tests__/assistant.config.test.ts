@@ -285,7 +285,7 @@ describe('systemPrompt — carga y sustitución de placeholders', () => {
     // ("¿quién habla?"). Ahora el firstMessage SOLO saluda y confirma
     // identidad; el modelo dice la identificación + el gancho en su primer
     // turno hablado, DESPUÉS de que el prospecto confirma que es él.
-    const saludoSistema = 'Qué gusto, muy buenas. ¿Hablo con {{prospecto_nombre}}?';
+    const saludoSistema = 'Muy buenas tardes. ¿Tengo el gusto con {{prospecto_nombre}}?';
     const identificacion =
       `Le llama ${mockConfig.AGENTE_NOMBRE}, asistente virtual de ${mockConfig.EMPRESA_NOMBRE}. ` +
       'Le marco por algo que muchos profesionistas como usted están aprovechando y que puede interesarle.';
@@ -573,7 +573,7 @@ describe('buildAssistant — assistant transient completo', () => {
     // firstMessage ahora corta ahí; la identificación + el gancho los dice el
     // modelo DESPUÉS de que el prospecto confirma (Paso 1 del system prompt).
     const assistant = buildAssistant();
-    expect(assistant.firstMessage).toBe('Qué gusto, muy buenas. ¿Hablo con {{prospecto_nombre}}?');
+    expect(assistant.firstMessage).toBe('Muy buenas tardes. ¿Tengo el gusto con {{prospecto_nombre}}?');
     expect(assistant.firstMessage).toContain('{{prospecto_nombre}}');
     // Ya NO identifica ni engancha: eso vive únicamente en el system prompt.
     expect(assistant.firstMessage).not.toContain('asistente virtual');

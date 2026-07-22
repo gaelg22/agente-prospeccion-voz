@@ -426,7 +426,7 @@ export function buildAssistant(): VapiTransientAssistant {
     // identificación + el gancho en el primer turno del modelo, DESPUÉS de
     // que la persona confirma que es ella.
     // {{prospecto_nombre}} lo sustituye Vapi con assistantOverrides.variableValues.
-    firstMessage: 'Qué gusto, muy buenas. ¿Hablo con {{prospecto_nombre}}?',
+    firstMessage: 'Muy buenas tardes. ¿Tengo el gusto con {{prospecto_nombre}}?',
     model: {
       provider: 'anthropic',
       model: config.VAPI_LLM_MODEL,
