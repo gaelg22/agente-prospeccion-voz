@@ -36,8 +36,12 @@ function setup(busySlots: Array<{ start: string; end: string }> = []) {
     htmlLink: 'https://cal/evt-1',
   }));
   const getBusySlots = vi.fn(async () => busySlots);
-  const sendBookingConfirmation = vi.fn(async () => undefined);
-  const sendAdvisorNotice = vi.fn(async () => undefined);
+  const sendBookingConfirmation = vi.fn(
+    async (..._args: Parameters<NotificacionesService['sendBookingConfirmation']>) => undefined,
+  );
+  const sendAdvisorNotice = vi.fn(
+    async (..._args: Parameters<NotificacionesService['sendAdvisorNotice']>) => undefined,
+  );
   const calendar = { createEvent, getBusySlots } as unknown as CalendarClient;
   const notificaciones = {
     sendBookingConfirmation,

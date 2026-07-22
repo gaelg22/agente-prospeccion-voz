@@ -9,7 +9,7 @@
     "dev": "tsx watch --env-file=.env src/server.ts",
     "dev:tunnel": "node scripts/dev-tunnel.mjs",
     "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src"

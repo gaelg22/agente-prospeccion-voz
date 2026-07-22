@@ -31,6 +31,12 @@ vi.mock('../denue.client', () => ({
 
 import { IngestaService } from '../ingesta.service';
 import { DenueClient } from '../denue.client';
+import { zDenueSearchParams } from '../denue.zod';
+
+// run() recibe los params ya resueltos por zDenueSearchParams.parse() (así los
+// entrega ingesta.routes.ts) — se replica aquí para que el test use el mismo
+// contrato en vez de un objeto parcial.
+const searchParams = zDenueSearchParams.parse({ busqueda: 'consultorios', entidad: '19' });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -80,7 +86,7 @@ describe('IngestaService.run() — A5: promoción automática nuevo→listo_llam
     fetchAllMock.mockResolvedValue([makeEstablecimiento()]);
     createMock.mockResolvedValue(lead);
 
-    const result = await service.run({ busqueda: 'consultorios', entidad: '19' });
+    const result = await service.run(searchParams);
 
     expect(createMock).toHaveBeenCalledOnce();
     expect(transitionMock).toHaveBeenCalledWith(
@@ -98,7 +104,7 @@ describe('IngestaService.run() — A5: promoción automática nuevo→listo_llam
     fetchAllMock.mockResolvedValue([makeEstablecimiento({ telefono: '' })]);
     createMock.mockResolvedValue(leadSinTel);
 
-    const result = await service.run({ busqueda: 'consultorios', entidad: '19' });
+    const result = await service.run(searchParams);
 
     expect(createMock).toHaveBeenCalledOnce();
     expect(transitionMock).not.toHaveBeenCalled();
@@ -111,7 +117,7 @@ describe('IngestaService.run() — A5: promoción automática nuevo→listo_llam
     const dupError = Object.assign(new Error('E11000'), { code: 11000 });
     createMock.mockRejectedValue(dupError);
 
-    const result = await service.run({ busqueda: 'consultorios', entidad: '19' });
+    const result = await service.run(searchParams);
 
     expect(transitionMock).not.toHaveBeenCalled();
     expect(result.created).toBe(0);
@@ -132,7 +138,7 @@ describe('IngestaService.run() — A5: promoción automática nuevo→listo_llam
       .mockResolvedValueOnce(makeLeadCreado(null))
       .mockResolvedValueOnce(makeLeadCreado('+525522222222'));
 
-    const result = await service.run({ busqueda: 'consultorios', entidad: '19' });
+    const result = await service.run(searchParams);
 
     expect(result.fetched).toBe(3);
     expect(result.created).toBe(3);
@@ -142,7 +148,7 @@ describe('IngestaService.run() — A5: promoción automática nuevo→listo_llam
 
   it('resultado incluye campo promoted en la respuesta JSON', async () => {
     fetchAllMock.mockResolvedValue([]);
-    const result = await service.run({ busqueda: 'consultorios', entidad: '19' });
+    const result = await service.run(searchParams);
 
     expect(result).toHaveProperty('promoted');
     expect(result.promoted).toBe(0);

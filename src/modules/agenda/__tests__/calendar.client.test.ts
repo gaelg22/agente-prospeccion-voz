@@ -61,7 +61,7 @@ describe('CalendarClient.createEvent — link de Meet detrás de GOOGLE_MEET_ENA
 
     const result = await new CalendarClient().createEvent(baseParams);
 
-    const callArg = insertMock.mock.calls[0][0];
+    const callArg = insertMock.mock.calls[0]?.[0];
     expect(callArg.conferenceDataVersion).toBe(1);
     expect(callArg.requestBody.conferenceData.createRequest.conferenceSolutionKey.type).toBe(
       'hangoutsMeet',
@@ -84,7 +84,7 @@ describe('CalendarClient.createEvent — link de Meet detrás de GOOGLE_MEET_ENA
 
     const result = await new CalendarClient().createEvent(baseParams);
 
-    const callArg = insertMock.mock.calls[0][0];
+    const callArg = insertMock.mock.calls[0]?.[0];
     expect(callArg.conferenceDataVersion).toBeUndefined();
     expect(callArg.requestBody.conferenceData).toBeUndefined();
 

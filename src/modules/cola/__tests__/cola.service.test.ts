@@ -71,8 +71,8 @@ describe('ColaService.scheduleRetry() — C2: embargo de marcación', () => {
   it('el embargo y el job usan exactamente la misma fecha (sin desfase)', async () => {
     await ColaService.scheduleRetry(leadId);
 
-    const jobDate: Date = scheduleMock.mock.calls[0][0];
-    const embargoDate: Date = updateOneMock.mock.calls[0][1]['$set']['noLlamarAntesDe'];
+    const jobDate: Date = scheduleMock.mock.calls[0]![0];
+    const embargoDate: Date = updateOneMock.mock.calls[0]![1]['$set']['noLlamarAntesDe'];
 
     expect(embargoDate.getTime()).toBe(jobDate.getTime());
   });

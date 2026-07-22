@@ -110,7 +110,8 @@ describe('A2 — pino-http redact: headers sensibles nunca aparecen en claro', (
     await request(app).get('/ping').set('x-vapi-secret', secretValue);
 
     const logLine = lines[lines.length - 1];
-    const parsed = JSON.parse(logLine);
+    expect(logLine).toBeDefined();
+    const parsed = JSON.parse(logLine!);
     expect(parsed.req.headers?.['x-vapi-secret']).toBe('[Redacted]');
     expect(logLine).not.toContain(secretValue);
   });
@@ -119,7 +120,8 @@ describe('A2 — pino-http redact: headers sensibles nunca aparecen en claro', (
     await request(app).get('/ping').set('x-custom-header', 'valor-publico');
 
     const logLine = lines[lines.length - 1];
-    const parsed = JSON.parse(logLine);
+    expect(logLine).toBeDefined();
+    const parsed = JSON.parse(logLine!);
     // x-custom-header no está en la lista de redact — debe verse
     expect(parsed.req.headers?.['x-custom-header']).toBe('valor-publico');
   });

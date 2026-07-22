@@ -20,11 +20,13 @@ vi.mock('../../../lib/logger', () => ({ logger: mockLogger }));
 import { NotificacionesService } from '../notificaciones.service';
 import type { KapsoClient } from '../kapso.client';
 
+type SendTemplateArgs = Parameters<KapsoClient['sendTemplate']>;
+
 const lead = { razonSocial: 'Consultorio Test', telefono: '+525512345678' };
 const CITA_FECHA = new Date('2026-08-03T23:00:00Z'); // 17:00 hora de México
 
 function setup() {
-  const sendTemplate = vi.fn(async () => ({ messageId: 'msg-1', status: 'sent' }));
+  const sendTemplate = vi.fn(async (..._args: SendTemplateArgs) => ({ messageId: 'msg-1', status: 'sent' }));
   const service = new NotificacionesService({ sendTemplate } as unknown as KapsoClient);
   return { service, sendTemplate };
 }

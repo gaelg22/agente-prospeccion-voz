@@ -226,7 +226,8 @@ describe('reconciliar-llamadas — leads varados en llamado', () => {
   });
 
   it('lead sin vapiCallId: no hay nada que consultar → error_tecnico directo', async () => {
-    const lead = makeLeadVarado({ vapiCallId: undefined });
+    const lead = makeLeadVarado();
+    delete lead.vapiCallId;
     vi.mocked(LeadService.findEstancadosEnLlamado).mockResolvedValue([lead]);
     const handler = captureHandler(defineReconciliarLlamadasJob);
 
