@@ -20,6 +20,11 @@ import { AgendaService } from '../agenda.service';
 import type { CalendarClient, CalendarEventParams } from '../calendar.client';
 import type { NotificacionesService } from '../../notificaciones/notificaciones.service';
 
+// Los slots de prueba son de agosto 2026: fijamos el reloj antes de esa fecha
+// para que la revalidación de "slot en el pasado" no rompa los tests con el tiempo.
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date('2026-07-22T12:00:00-06:00'));
+
 const leadAcepto = {
   _id: 'lead-1',
   status: 'acepto',
